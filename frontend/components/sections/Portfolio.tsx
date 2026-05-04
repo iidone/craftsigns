@@ -62,7 +62,7 @@ export const Portfolio = () => {
 
   if (error) {
     return (
-      <section id="portfolio" className="min-h-screen bg-slate-400/95 rounded-4xl flex items-center justify-center">
+      <section id="portfolio" className="min-h-screen bg-slate-400/95 flex items-center justify-center">
         <div className="text-red-300 text-xl">Ошибка: {error}</div>
       </section>
     );
@@ -70,7 +70,7 @@ export const Portfolio = () => {
 
   if (portfolioItems.length === 0) {
     return (
-      <section id="portfolio" className="min-h-screen bg-slate-400/95 rounded-4xl flex items-center justify-center">
+      <section id="portfolio" className="min-h-screen bg-slate-400/95 flex items-center justify-center">
         <div className="text-white text-xl">Пока нет работ в портфолио</div>
       </section>
     );
@@ -78,7 +78,7 @@ export const Portfolio = () => {
 
   return (
     <>
-  <section id="portfolio" className="min-h-[70vh] md:min-h-screen w-full max-w-6xl mx-auto py-6 md:py-10 px-4 md:px-8 overflow-hidden relative select-none portfolio-diagonal bg-gradient-to-br from-slate-900/95 via-slate-800/80 to-slate-900/95 rounded-4xl">
+  <section id="portfolio" className="min-h-[100vh] md:min-h-screen w-full mx-auto py-6 md:py-10 px-4 md:px-8 overflow-hidden relative select-none portfolio-diagonal bg-gradient-to-br from-slate-900/95 via-slate-800/80 to-slate-900/95">
         <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-black/30 to-transparent z-10"></div>
         <div className="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-black/30 to-transparent z-10"></div>
         

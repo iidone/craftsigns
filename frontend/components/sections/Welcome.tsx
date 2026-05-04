@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 export const Welcome = () => (
-  <section id="welcome" className="min-h-[40vh] md:min-h-screen py-3 md:py-6 px-4 md:px-8 bg-slate-800/90 rounded-4xl flex flex-col items-center justify-center">
+  <section id="welcome" className=" md:min-h-screen py-3 md:py-6 px-4 md:px-8 bg-slate-800/90 flex flex-col items-center justify-center">
     <div className="select-none p-8 md:p-12 flex gap-8 md:gap-12 max-w-6xl mx-auto w-full">
       <div className="flex-1">
         <div className="flex items-center gap-0 group cursor-default">

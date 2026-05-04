@@ -103,7 +103,7 @@ export const Services = () => {
 
   if (loading) {
     return (
-      <section id="services" className="min-h-screen bg-gradient-to-br from-slate-600 via-slate-500 to-slate-400 rounded-4xl flex items-center justify-center">
+      <section id="services" className="min-h-screen bg-gradient-to-br from-slate-600 via-slate-500 to-slate-400 flex items-center justify-center">
         <div className="text-white text-2xl font-light animate-pulse">Загрузка...</div>
       </section>
     );
@@ -111,7 +111,7 @@ export const Services = () => {
 
   if (error) {
     return (
-      <section id="services" className="min-h-screen bg-gradient-to-br from-slate-600 via-slate-500 to-slate-400 rounded-4xl flex items-center justify-center">
+      <section id="services" className="min-h-screen bg-gradient-to-br from-slate-600 via-slate-500 to-slate-400 flex items-center justify-center">
         <div className="text-red-300 text-xl">Ошибка: {error}</div>
       </section>
     );
@@ -119,7 +119,7 @@ export const Services = () => {
 
   if (services.length === 0) {
     return (
-      <section id="services" className="min-h-screen bg-gradient-to-br from-slate-600 via-slate-500 to-slate-400 rounded-4xl flex items-center justify-center">
+      <section id="services" className="min-h-screen bg-gradient-to-br from-slate-600 via-slate-500 to-slate-400 flex items-center justify-center">
         <div className="text-white text-xl">Пока нет услуг</div>
       </section>
     );
@@ -127,7 +127,7 @@ export const Services = () => {
 
   return (
     <>
-      <section id="services" className="min-h-[70vh] md:min-h-screen py-12 md:py-20 px-4 bg-gradient-to-br from-slate-600 via-slate-500 to-slate-400 rounded-4xl relative overflow-hidden">
+      <section id="services" className="md:min-h-screen py-12 md:py-20 px-4 bg-gradient-to-br from-slate-600 via-slate-500 to-slate-400 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-black/20 to-transparent pointer-events-none"></div>
         <div className="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-black/20 to-transparent pointer-events-none"></div>
         

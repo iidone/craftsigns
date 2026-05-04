@@ -38,7 +38,7 @@ function Header() {
       <Link href="/#ie" className="mx-4 hover:text-slate-300 transition-colors">
         ИП ВИСТЯКОВ Д. Г.
       </Link>
-      <AuthButton />
+      
       {user?.role === "admin" && (
         <Link 
           href="/admin"
@@ -47,6 +47,7 @@ function Header() {
           АДМИН ПАНЕЛЬ
         </Link>
       )}
+      <AuthButton />  
     </header>
   );
 }
