@@ -29,7 +29,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="ru">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
@@ -38,7 +38,9 @@ export default function RootLayout({
           {children}
           <ScrollToTop />
           <ChatWidget />
-          <footer className="bg-slate-950 h-20"></footer>
+          <footer className="border-t border-white/10 bg-[#050505] py-6">
+            <div className="app-shell text-sm text-zinc-600">CraftSigns</div>
+          </footer>
         </AuthProvider>
       </body>
     </html>

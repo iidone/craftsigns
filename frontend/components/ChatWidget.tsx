@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { MessageCircle, X, Send, Bot, User } from "lucide-react";
+import { MessageCircle, X, Send, Bot } from "lucide-react";
 
 interface Message {
   role: "user" | "assistant";
@@ -72,7 +72,7 @@ export const ChatWidget = () => {
           if (response.status === 401 && errorData.detail) {
             errorMsg = `Ошибка авторизации: ${errorData.detail}. Войдите заново.`;
           }
-        } catch (parseErr) {
+        } catch {
           // Ignore parse error
         }
         throw new Error(errorMsg);
@@ -87,11 +87,12 @@ export const ChatWidget = () => {
         timestamp: data.timestamp,
       };
       setMessages((prev) => [...prev, aiMsg]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Chat Error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Ошибка связи с сервером";
       setMessages((prev) => [...prev, { 
         role: "assistant", 
-        content: error.message, 
+        content: errorMessage, 
         timestamp: new Date().toISOString() 
       }]);
     } finally {
@@ -100,30 +101,31 @@ export const ChatWidget = () => {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-[100] font-sans">
+    <div className="fixed bottom-5 right-5 z-[100] font-sans">
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="bg-amber-400 cursor-pointer hover:bg-amber-500 text-slate-900 p-4 rounded-full shadow-2xl transition-all hover:scale-110 active:scale-95"
+          className="rounded-2xl border border-white/10 bg-white p-4 text-black shadow-[0_20px_70px_rgba(0,0,0,0.35)] transition hover:bg-zinc-200 active:scale-95"
+          type="button"
         >
           <MessageCircle size={28} />
         </button>
       )}
 
       {isOpen && (
-        <div className="bg-slate-800 border border-slate-700 w-[350px] h-[500px] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 duration-300">
-          <div className="bg-slate-700 p-4 flex justify-between items-center border-b border-slate-600">
+        <div className="flex h-[500px] w-[min(350px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[26px] border border-white/10 bg-[#0b0b0c] shadow-[0_20px_70px_rgba(0,0,0,0.35)] animate-scale-in">
+          <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.03] p-4">
             <div className="flex items-center gap-2 text-white">
-              <Bot className="text-amber-400" size={20} />
-              <span className="font-bold select-none">Ассистент CraftSigns</span>
+              <Bot className="text-zinc-300" size={20} />
+              <span className="select-none font-semibold">Ассистент CraftSigns</span>
             </div>
-            <button onClick={() => setIsOpen(false)} className=" cursor-pointer text-slate-400 hover:text-white transition-colors">
+            <button onClick={() => setIsOpen(false)} className="text-zinc-500 transition hover:text-white" type="button">
               <X size={20}/>
             </button>
           </div>
-          <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-slate-600">
+          <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
             {messages.length === 0 && (
-              <div className="text-slate-400 text-center mt-10 text-sm">
+              <div className="mt-10 text-center text-sm leading-6 text-zinc-500">
                 Привет! Я помогу рассчитать стоимость вывески или отвечу на вопросы.
               </div>
             )}
@@ -131,8 +133,8 @@ export const ChatWidget = () => {
               <div key={idx} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                 <div className={`max-w-[80%] p-3 rounded-2xl text-sm ${
                   msg.role === "user" 
-                    ? "bg-amber-400 text-slate-900 rounded-tr-none" 
-                    : "bg-slate-700 text-white rounded-tl-none"
+                    ? "bg-white text-black rounded-tr-md" 
+                    : "border border-white/10 bg-white/[0.05] text-white rounded-tl-md"
                 }`}>
                   {msg.content}
                 </div>
@@ -140,24 +142,24 @@ export const ChatWidget = () => {
             ))}
             {isLoading && (
               <div className="flex justify-start">
-                <div className="bg-slate-700 p-3 rounded-2xl rounded-tl-none animate-pulse text-slate-400">
+                <div className="rounded-2xl rounded-tl-md border border-white/10 bg-white/[0.05] p-3 text-zinc-400 animate-pulse">
                   Печатает...
                 </div>
               </div>
             )}
           </div>
-          <form onSubmit={sendMessage} className="p-4 bg-slate-700/50 border-t border-slate-600 flex gap-2">
+          <form onSubmit={sendMessage} className="flex gap-2 border-t border-white/10 bg-white/[0.03] p-4">
             <input
               type="text"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Ваш вопрос..."
-              className="flex-1 bg-slate-900 text-white text-sm rounded-xl px-4 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400"
+              className="flex-1 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-white/30"
             />
             <button
               type="submit"
               disabled={isLoading}
-              className="bg-amber-400 select-none  cursor-pointer p-2 rounded-xl text-slate-900 hover:bg-amber-500 disabled:opacity-50 transition-colors"
+              className="rounded-2xl bg-white p-2 text-black transition hover:bg-zinc-200 disabled:opacity-50"
             >
               <Send size={18} />
             </button>

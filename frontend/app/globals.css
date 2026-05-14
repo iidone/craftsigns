@@ -2,8 +2,11 @@
 @import "keen-slider/keen-slider.min.css";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #050505;
+  --foreground: #ffffff;
+  --panel: #0b0b0c;
+  --panel-soft: #111113;
+  --muted: #a1a1aa;
 }
 
 @theme inline {
@@ -13,27 +16,85 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  background: var(--background);
-  background-image: url('/images/paper-texture.jpg');
-  background-size: 100% 100%;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-attachment: fixed;
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-  min-height: 100vh;
+* {
+  box-sizing: border-box;
 }
 
 html {
   scroll-behavior: smooth;
+  background: var(--background);
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.06), transparent 34%),
+    linear-gradient(180deg, #090909 0%, #050505 100%);
+  color: var(--foreground);
+  font-family: "Segoe UI Variable Display", Arial, Helvetica, sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button {
+  cursor: pointer;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 3px;
+}
+
+section[id] {
+  scroll-margin-top: 5.5rem;
+}
+
+input,
+textarea {
+  user-select: text;
+}
+
+.app-shell {
+  width: min(100% - 2rem, 1440px);
+  margin-inline: auto;
+}
+
+.section-panel {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #0b0b0c;
+  border-radius: 30px;
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.35);
+}
+
+.section-eyebrow {
+  display: inline-flex;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.25rem 0.75rem;
+  color: #d4d4d8;
+  font-size: 0.68rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+.icon-tile {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 24px;
+  transition: background-color 180ms ease, border-color 180ms ease, transform 180ms ease;
+}
+
+.icon-tile:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.07);
+  transform: translateY(-2px);
 }
 
 .hide-scrollbar {
@@ -45,72 +106,22 @@ html {
   display: none;
 }
 
-/* Portfolio Grid Styles */
-  .portfolio-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 1rem;
-    max-width: 80rem;
-    margin: 0 auto;
-    padding: 0 0.5rem;
-  }
-
-
-@media (min-width: 640px) {
-  .portfolio-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 2rem;
-    padding: 0 2rem;
-  }
+.portfolio-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 768px) {
   .portfolio-grid {
-    grid-template-columns: repeat(3, 1fr);
-    padding: 0 4rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @media (min-width: 1280px) {
   .portfolio-grid {
-    grid-template-columns: repeat(4, 1fr);
-    padding: 0 5rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
-}
-
-/* Portfolio Background Diagonal */
-.portfolio-diagonal::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.05) 0%, transparent 50%);
-  transform: skewY(-8deg) translateY(-10%);
-  z-index: -1;
-  width: 120%;
-  left: -10%;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-fade-in-up {
-  animation: fadeInUp 0.6s ease-out forwards;
-}
-
-.portfolio-card {
-  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.glow-effect {
-  box-shadow: 0 0 40px rgba(251, 191, 36, 0.3);
 }
 
 @keyframes fadeIn {
@@ -124,48 +135,19 @@ html {
 
 @keyframes scaleIn {
   from {
-    transform: scale(0.9);
     opacity: 0;
+    transform: scale(0.96);
   }
   to {
-    transform: scale(1);
     opacity: 1;
+    transform: scale(1);
   }
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.3s ease-out forwards;
+  animation: fadeIn 0.2s ease-out forwards;
 }
 
 .animate-scale-in {
-  animation: scaleIn 0.3s ease-out forwards;
-}
-
-/* Анимация закрытия модального окна */
-@keyframes fadeOut {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-
-@keyframes scaleOut {
-  from {
-    transform: scale(1);
-    opacity: 1;
-  }
-  to {
-    transform: scale(0.9);
-    opacity: 0;
-  }
-}
-
-.animate-fade-out {
-  animation: fadeOut 0.3s ease-out forwards;
-}
-
-.animate-scale-out {
-  animation: scaleOut 0.3s ease-out forwards;
+  animation: scaleIn 0.2s ease-out forwards;
 }

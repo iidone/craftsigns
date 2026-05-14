@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import KeenSlider from "keen-slider";
+import { useEffect, useRef, useState } from "react";
+import KeenSlider, { type KeenSliderInstance } from "keen-slider";
 import "keen-slider/keen-slider.min.css";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
 interface ServiceItem {
   id: number;
@@ -17,336 +18,174 @@ export const Services = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedService, setSelectedService] = useState<ServiceItem | null>(null);
-  const [isClosing, setIsClosing] = useState(false);
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const [slidesPerView, setSlidesPerView] = useState(5);
-
+  const [slidesPerView, setSlidesPerView] = useState(4);
   const sliderRef = useRef<HTMLDivElement>(null);
-  const sliderInstance = useRef<any>(null);
+  const sliderInstance = useRef<KeenSliderInstance | null>(null);
 
   useEffect(() => {
     const fetchServices = async () => {
       try {
         const response = await fetch("/api/v1/portfolio_and_services/services");
         if (!response.ok) {
-          throw new Error("Failed to fetch services");
+          throw new Error("Не удалось загрузить услуги");
         }
-        const data = await response.json();
-        setServices(data);
+        setServices(await response.json());
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Unknown error");
+        setError(err instanceof Error ? err.message : "Неизвестная ошибка");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchServices();
+    void fetchServices();
   }, []);
 
   useEffect(() => {
-    const updateSlidesPerView = () => {
-      const width = window.innerWidth;
-      if (width < 768) return 1;
-      if (width < 1024) return 2;
-      if (width < 1280) return 3;
-      return 4;
-    };
-
     const handleResize = () => {
-      setSlidesPerView(updateSlidesPerView());
+      const width = window.innerWidth;
+      setSlidesPerView(width < 760 ? 1 : width < 1024 ? 2 : width < 1280 ? 3 : 4);
     };
 
     handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   useEffect(() => {
     if (!sliderRef.current || services.length === 0) return;
 
+    sliderInstance.current?.destroy();
     const slider = new KeenSlider(sliderRef.current, {
-      loop: true,
+      loop: services.length > slidesPerView,
       mode: "free-snap",
       slides: {
         perView: slidesPerView,
-        spacing: 20,
-      },
-      created: (instance) => {
-        sliderInstance.current = instance;
-      },
-      slideChanged: (instance) => {
-        setCurrentSlide(instance.track.details.rel);
+        spacing: 14,
       },
     });
 
     sliderInstance.current = slider;
-
-    return () => {
-      if (sliderInstance.current) {
-        sliderInstance.current.destroy();
-      }
-    };
+    return () => slider.destroy();
   }, [services.length, slidesPerView]);
-
-  const handleCardClick = (item: ServiceItem) => {
-    setSelectedService(item);
-    setIsClosing(false);
-  };
-
-  const closeModal = () => {
-    setIsClosing(true);
-    setTimeout(() => {
-      setSelectedService(null);
-      setIsClosing(false);
-    }, 300);
-  };
-
-  if (loading) {
-    return (
-      <section id="services" className="min-h-screen bg-gradient-to-br from-slate-600 via-slate-500 to-slate-400 flex items-center justify-center">
-        <div className="text-white text-2xl font-light animate-pulse">Загрузка...</div>
-      </section>
-    );
-  }
-
-  if (error) {
-    return (
-      <section id="services" className="min-h-screen bg-gradient-to-br from-slate-600 via-slate-500 to-slate-400 flex items-center justify-center">
-        <div className="text-red-300 text-xl">Ошибка: {error}</div>
-      </section>
-    );
-  }
-
-  if (services.length === 0) {
-    return (
-      <section id="services" className="min-h-screen bg-gradient-to-br from-slate-600 via-slate-500 to-slate-400 flex items-center justify-center">
-        <div className="text-white text-xl">Пока нет услуг</div>
-      </section>
-    );
-  }
 
   return (
     <>
-      <section id="services" className="md:min-h-screen py-12 md:py-20 px-4 bg-gradient-to-br from-slate-600 via-slate-500 to-slate-400 relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-black/20 to-transparent pointer-events-none"></div>
-        <div className="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-black/20 to-transparent pointer-events-none"></div>
-        
-        <div className="relative z-10 max-w-7xl mx-auto">
-          <div className="text-center mb-12 md:mb-16">
-            <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white tracking-wider uppercase drop-shadow-lg">
-              Наши <span className="text-amber-400">Услуги</span>
-            </h2>
-            <p className="text-base font-light text-slate-300 mt-2 md:mt-4">Качественно. Надежно. В срок.</p>
+      <section id="services" className="app-shell py-4">
+        <div className="section-panel overflow-hidden p-5 sm:p-8 lg:p-10">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="section-eyebrow">Услуги</div>
+              <h2 className="mt-5 text-3xl font-semibold text-white sm:text-4xl">
+                Что можно заказать
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-500">
+                Карточки подтягиваются из API. Формат оставлен прежним, но
+                визуально они теперь совпадают с интерфейсом Journal.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-white transition hover:bg-white/10"
+                onClick={() => sliderInstance.current?.prev()}
+                type="button"
+              >
+                <ChevronLeft size={19} />
+              </button>
+              <button
+                className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-white transition hover:bg-white/10"
+                onClick={() => sliderInstance.current?.next()}
+                type="button"
+              >
+                <ChevronRight size={19} />
+              </button>
+            </div>
           </div>
 
-          <div className="relative px-12 md:px-16">
-            {/* Navigation Buttons */}
-            <button
-              onClick={() => sliderInstance.current?.prev()}
-              className="absolute left-0 top-1/2 -translate-y-1/2 z-30 w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center bg-white/20 hover:bg-white/40 text-white backdrop-blur-sm transition-all duration-300 hover:scale-110"
-              aria-label="Previous"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
+          <StateBlock loading={loading} error={error} empty={!loading && !error && services.length === 0} />
 
-            {/* Slider */}
-            <div ref={sliderRef} className="keen-slider">
-              {services.map((item, idx) => (
-                <div
-                  key={item.id}
-                  className="keen-slider__slide"
-                  style={{
-                    minHeight: "380px",
-                  }}
-                >
-                  <div 
-                    className="cursor-pointer h-full"
-                    onClick={() => handleCardClick(item)}
-                  >
-                    <ServiceCard item={item} />
-                  </div>
+          {!loading && !error && services.length > 0 && (
+            <div ref={sliderRef} className="keen-slider mt-8">
+              {services.map((item) => (
+                <div key={item.id} className="keen-slider__slide min-h-[390px]">
+                  <ServiceCard item={item} onClick={setSelectedService} />
                 </div>
               ))}
             </div>
-
-            <button
-              onClick={() => sliderInstance.current?.next()}
-              className="absolute right-0 top-1/2 -translate-y-1/2 z-30 w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center bg-white/20 hover:bg-white/40 text-white backdrop-blur-sm transition-all duration-300 hover:scale-110"
-              aria-label="Next"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-
-            {/* Dots Navigation */}
-            {services.length > slidesPerView && (
-              <div className="flex justify-center gap-2 mt-8">
-                {Array.from({ length: Math.ceil(services.length / slidesPerView) }).map((_, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => sliderInstance.current?.moveToIdx(idx * slidesPerView)}
-                    className={`h-2 rounded-full transition-all duration-300 ${
-                      currentSlide === idx * slidesPerView 
-                        ? "w-8 bg-amber-400" 
-                        : "w-2 bg-white/50 hover:bg-white/80"
-                    }`}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </section>
 
-      {/* Modal */}
       {selectedService && (
-        <div 
-          className={`fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 ${
-            isClosing ? 'animate-fade-out' : 'animate-fade-in'
-          }`}
-          onClick={closeModal}
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-md animate-fade-in"
+          onClick={() => setSelectedService(null)}
         >
-          <button 
-            className="absolute top-4 right-4 w-12 h-12 rounded-full bg-white/20 hover:bg-white/40 flex items-center justify-center text-white transition-all hover:scale-110 z-10"
-            onClick={closeModal}
+          <button
+            className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] text-white transition hover:bg-white/10"
+            onClick={() => setSelectedService(null)}
+            type="button"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X size={20} />
           </button>
-          
-          <div 
-            className={`max-w-[90vw] max-h-[90vh] relative ${
-              isClosing ? 'animate-scale-out' : 'animate-scale-in'
-            }`}
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="relative max-h-[90vh] max-w-[94vw] overflow-hidden rounded-[26px] border border-white/10 bg-[#0b0b0c] animate-scale-in" onClick={(event) => event.stopPropagation()}>
             <img
-              src={selectedService.photo_url ? `/api${selectedService.photo_url}` : "/images/paper-texture.jpg"}
+              src={selectedService.photo_url ? `/api${selectedService.photo_url}` : "/images/bg.jpg"}
               alt={selectedService.name}
-              className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl"
+              className="max-h-[72vh] w-full object-contain"
             />
-            <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent rounded-b-lg">
-              <h3 className="text-2xl md:text-3xl font-bold text-white mb-2">{selectedService.name}</h3>
+            <div className="border-t border-white/10 bg-[#0b0b0c] p-5">
+              <h3 className="text-xl font-semibold text-white">{selectedService.name}</h3>
               {selectedService.description && (
-                <p className="text-slate-300 mb-4">{selectedService.description}</p>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">{selectedService.description}</p>
               )}
               {selectedService.price && (
-                <div className="text-xl md:text-2xl font-bold text-amber-400">{selectedService.price}</div>
+                <p className="mt-4 text-base font-semibold text-white">{selectedService.price}</p>
               )}
             </div>
           </div>
         </div>
       )}
-
-      <style jsx global>{`
-        @keyframes fade-in {
-          from {
-            opacity: 0;
-          }
-          to {
-            opacity: 1;
-          }
-        }
-
-        @keyframes fade-out {
-          from {
-            opacity: 1;
-          }
-          to {
-            opacity: 0;
-          }
-        }
-
-        @keyframes scale-in {
-          from {
-            transform: scale(0.9);
-            opacity: 0;
-          }
-          to {
-            transform: scale(1);
-            opacity: 1;
-          }
-        }
-
-        @keyframes scale-out {
-          from {
-            transform: scale(1);
-            opacity: 1;
-          }
-          to {
-            transform: scale(0.9);
-            opacity: 0;
-          }
-        }
-
-        .animate-fade-in {
-          animation: fade-in 0.3s ease-out;
-        }
-
-        .animate-fade-out {
-          animation: fade-out 0.3s ease-out;
-        }
-
-        .animate-scale-in {
-          animation: scale-in 0.3s ease-out;
-        }
-
-        .animate-scale-out {
-          animation: scale-out 0.3s ease-out;
-        }
-      `}</style>
     </>
   );
 };
 
-const ServiceCard = ({ item }: { item: ServiceItem }) => {
-  const imageSrc = item.photo_url ? `/api${item.photo_url}` : "/images/paper-texture.jpg";
+const StateBlock = ({ loading, error, empty }: { loading: boolean; error: string | null; empty: boolean }) => {
+  if (!loading && !error && !empty) return null;
 
   return (
-    <div className="group relative overflow-hidden rounded-2xl transition-all duration-500 h-full hover:shadow-amber-400/30">
-      <div className="absolute inset-0 overflow-hidden">
-        <img 
-          src={imageSrc} 
-          alt={item.name} 
-          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent transition-opacity duration-500 opacity-70 group-hover:opacity-50" />
-      </div>
-
-      <div className="relative h-full flex flex-col justify-end p-5">
-        <div className="transform transition-all duration-500">
-          <h3 className="text-white text-lg md:text-xl font-bold mb-2 group-hover:-translate-y-1">
-            {item.name}
-          </h3>
-          
-          {item.description && (
-            <p className="text-slate-300 text-sm line-clamp-2 group-hover:-translate-y-1 transition-transform duration-500">
-              {item.description}
-            </p>
-          )}
-
-          {item.price && (
-            <div className="mt-3 text-amber-400 font-bold text-base md:text-lg group-hover:-translate-y-1 transition-transform duration-500">
-              {item.price}
-            </div>
-          )}
-
-          <div className="mt-4 opacity-0 transform translate-y-4 transition-all duration-500 group-hover:opacity-100 group-hover:translate-y-0">
-            <span className="inline-flex items-center gap-2 text-amber-400 font-medium text-sm">
-              Подробнее
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className="absolute inset-0 border-2 rounded-2xl transition-all duration-500 border-white/0 group-hover:border-amber-400/50 pointer-events-none" />
+    <div className="mt-8 rounded-[24px] border border-white/10 bg-white/[0.03] p-8 text-center text-sm text-zinc-400">
+      {loading && "Загрузка услуг..."}
+      {error && `Ошибка: ${error}`}
+      {empty && "Пока нет услуг"}
     </div>
+  );
+};
+
+const ServiceCard = ({ item, onClick }: { item: ServiceItem; onClick: (item: ServiceItem) => void }) => {
+  const imageSrc = item.photo_url ? `/api${item.photo_url}` : "/images/bg.jpg";
+
+  return (
+    <button
+      className="group flex h-full w-full flex-col overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.03] text-left transition hover:border-white/20 hover:bg-white/[0.06]"
+      onClick={() => onClick(item)}
+      type="button"
+    >
+      <div className="h-56 overflow-hidden bg-zinc-950">
+        <img
+          src={imageSrc}
+          alt={item.name}
+          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+        />
+      </div>
+      <div className="flex flex-1 flex-col p-4">
+        <h3 className="text-base font-semibold text-white">{item.name}</h3>
+        {item.description && (
+          <p className="mt-2 line-clamp-3 text-sm leading-6 text-zinc-500">{item.description}</p>
+        )}
+        {item.price && (
+          <p className="mt-auto pt-5 text-sm font-semibold text-white">{item.price}</p>
+        )}
+      </div>
+    </button>
   );
 };

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, ReactNode } from "react";
 
 interface UserInfo {
   id: number;
@@ -20,23 +20,29 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<UserInfo | null>(null);
+const readStoredAuth = (): { token: string | null; user: UserInfo | null } => {
+  if (typeof window === "undefined") {
+    return { token: null, user: null };
+  }
 
-  useEffect(() => {
-    const savedToken = localStorage.getItem("auth_token");
-    const savedUser = localStorage.getItem("auth_user");
-    
-    if (savedToken && savedUser) {
-      try {
-        setToken(savedToken);
-        setUser(JSON.parse(savedUser));
-      } catch (e) {
-        console.error("Failed to parse user data", e);
-      }
-    }
-  }, []);
+  const savedToken = localStorage.getItem("auth_token");
+  const savedUser = localStorage.getItem("auth_user");
+
+  if (!savedToken || !savedUser) {
+    return { token: null, user: null };
+  }
+
+  try {
+    return { token: savedToken, user: JSON.parse(savedUser) };
+  } catch (error) {
+    console.error("Failed to parse user data", error);
+    return { token: null, user: null };
+  }
+};
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [token, setToken] = useState<string | null>(() => readStoredAuth().token);
+  const [user, setUser] = useState<UserInfo | null>(() => readStoredAuth().user);
 
   const login = (newToken: string, userInfo: UserInfo) => {
     setToken(newToken);

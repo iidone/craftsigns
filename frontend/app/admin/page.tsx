@@ -1,13 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { 
-  Plus, Trash2, Edit3, Save, 
-  MessageSquare, Users, Settings, Package, 
-  Info, DollarSign, FileText, AlertCircle,
-  ChevronDown, ChevronUp
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  DollarSign,
+  Edit3,
+  FileText,
+  Info,
+  MessageSquare,
+  Package,
+  Plus,
+  Save,
+  Settings,
+  Trash2,
+  Users,
 } from "lucide-react";
 
 interface User {
@@ -18,15 +28,30 @@ interface User {
   role: string;
 }
 
-interface BotBlock {
-  id: string;
+interface BotConfigBlock {
   type: string;
   content: string;
+}
+
+interface BotBlock extends BotConfigBlock {
+  id: string;
   category: "rules" | "prices" | "services" | "info";
   isExpanded?: boolean;
 }
 
 type TabType = "users" | "bot";
+
+const categoryOptions: Array<{ value: BotBlock["category"]; label: string }> = [
+  { value: "rules", label: "Правила" },
+  { value: "prices", label: "Цены" },
+  { value: "services", label: "Услуги" },
+  { value: "info", label: "Информация" },
+];
+
+const serializeBotBlock = (block: BotBlock): BotConfigBlock => ({
+  type: block.type,
+  content: block.content,
+});
 
 export default function AdminPanel() {
   const { user, token } = useAuth();
@@ -35,33 +60,29 @@ export default function AdminPanel() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
   const [blocks, setBlocks] = useState<BotBlock[]>([]);
   const [botLoading, setBotLoading] = useState(false);
   const [botError, setBotError] = useState("");
-
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
-
   const [newBlockCategory, setNewBlockCategory] = useState<BotBlock["category"]>("rules");
   const [newBlockType, setNewBlockType] = useState("");
-
   const [showAddForm, setShowAddForm] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
-
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [blockToDelete, setBlockToDelete] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!user || user.role !== "admin") {
-      router.push("/");
-      return;
-    }
-    fetchUsers();
-    loadBotConfig();
-  }, [user, router]);
+  const getCategoryFromType = (type: string): BotBlock["category"] => {
+    const typeMap: Record<string, BotBlock["category"]> = {
+      rules: "rules",
+      prices: "prices",
+      services: "services",
+      info: "info",
+    };
+    return typeMap[type] || "rules";
+  };
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch("/api/v1/admin/users", {
@@ -75,7 +96,39 @@ export default function AdminPanel() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
+
+  const loadBotConfig = useCallback(async () => {
+    if (!token) return;
+    try {
+      const response = await fetch("/api/v1/admin/bot-config", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data: { blocks: BotConfigBlock[] } = await response.json();
+        setBlocks(
+          data.blocks.map((block, index) => ({
+            id: index.toString(),
+            type: block.type,
+            content: block.content,
+            category: getCategoryFromType(block.type),
+            isExpanded: false,
+          }))
+        );
+      }
+    } catch {
+      setBotError("Не удалось загрузить конфигурацию");
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (!user || user.role !== "admin") {
+      router.push("/");
+      return;
+    }
+    void fetchUsers();
+    void loadBotConfig();
+  }, [user, router, fetchUsers, loadBotConfig]);
 
   const handlePromote = async (userId: number) => {
     try {
@@ -84,7 +137,7 @@ export default function AdminPanel() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) throw new Error("Ошибка повышения");
-      fetchUsers();
+      await fetchUsers();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка");
     }
@@ -98,42 +151,10 @@ export default function AdminPanel() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) throw new Error("Ошибка удаления");
-      fetchUsers();
+      await fetchUsers();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка");
     }
-  };
-
-  const loadBotConfig = async () => {
-    if (!token) return;
-    try {
-      const response = await fetch("/api/v1/admin/bot-config", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        const blocksWithId = data.blocks.map((b: any, index: number) => ({
-          id: index.toString(),
-          type: b.type,
-          content: b.content,
-          category: getCategoryFromType(b.type),
-          isExpanded: false
-        }));
-        setBlocks(blocksWithId);
-      }
-    } catch (err) {
-      setBotError("Не удалось загрузить конфигурацию");
-    }
-  };
-
-  const getCategoryFromType = (type: string): BotBlock["category"] => {
-    const typeMap: Record<string, BotBlock["category"]> = {
-      "rules": "rules",
-      "prices": "prices",
-      "services": "services",
-      "info": "info"
-    };
-    return typeMap[type] || "rules";
   };
 
   const saveBotConfig = async () => {
@@ -147,8 +168,8 @@ export default function AdminPanel() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ 
-          blocks: blocks.map(({ id, isExpanded, ...block }) => block)
+        body: JSON.stringify({
+          blocks: blocks.map(serializeBotBlock),
         }),
       });
       if (!response.ok) throw new Error("Ошибка сохранения");
@@ -166,36 +187,28 @@ export default function AdminPanel() {
       setBotError("Введите название правила/услуги");
       return;
     }
-    
+
     const id = Date.now().toString();
-    const newBlock: BotBlock = {
-      id,
-      type: newBlockType,
-      content: "",
-      category: newBlockCategory,
-      isExpanded: true
-    };
-    setBlocks([...blocks, newBlock]);
+    setBlocks([
+      ...blocks,
+      {
+        id,
+        type: newBlockType,
+        content: "",
+        category: newBlockCategory,
+        isExpanded: true,
+      },
+    ]);
     setNewBlockType("");
     setShowAddForm(false);
     setEditingId(id);
     setEditContent("");
   };
 
-  const deleteBlock = (id: string) => {
-    setDeleteModalOpen(true);
-    setBlockToDelete(id);
-  };
-
   const confirmDelete = () => {
     if (blockToDelete) {
-      setBlocks(blocks.filter(b => b.id !== blockToDelete));
+      setBlocks(blocks.filter((block) => block.id !== blockToDelete));
     }
-    setDeleteModalOpen(false);
-    setBlockToDelete(null);
-  };
-
-  const cancelDelete = () => {
     setDeleteModalOpen(false);
     setBlockToDelete(null);
   };
@@ -206,44 +219,57 @@ export default function AdminPanel() {
   };
 
   const saveEdit = (id: string) => {
-    setBlocks(blocks.map(b => b.id === id ? { ...b, content: editContent, isExpanded: false } : b));
+    setBlocks(blocks.map((block) => (block.id === id ? { ...block, content: editContent, isExpanded: false } : block)));
     setEditingId(null);
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEditContent("");
   };
 
   const toggleExpand = (id: string) => {
-    setBlocks(blocks.map(b => b.id === id ? { ...b, isExpanded: !b.isExpanded } : b));
+    setBlocks(blocks.map((block) => (block.id === id ? { ...block, isExpanded: !block.isExpanded } : block)));
   };
 
   const getCategoryIcon = (category: BotBlock["category"]) => {
     switch (category) {
-      case "rules": return <AlertCircle size={18} className="text-purple-500" />;
-      case "prices": return <DollarSign size={18} className="text-green-500" />;
-      case "services": return <Package size={18} className="text-blue-500" />;
-      case "info": return <Info size={18} className="text-orange-500" />;
-      default: return <FileText size={18} />;
+      case "rules":
+        return <AlertCircle size={18} />;
+      case "prices":
+        return <DollarSign size={18} />;
+      case "services":
+        return <Package size={18} />;
+      case "info":
+        return <Info size={18} />;
+      default:
+        return <FileText size={18} />;
     }
   };
 
   const getCategoryTitle = (category: BotBlock["category"]) => {
     switch (category) {
-      case "rules": return "Правила поведения";
-      case "prices": return "Цены и прайсы";
-      case "services": return "Услуги и товары";
-      case "info": return "Информация о компании";
-      default: return "Другое";
+      case "rules":
+        return "Правила поведения";
+      case "prices":
+        return "Цены и прайсы";
+      case "services":
+        return "Услуги и товары";
+      case "info":
+        return "Информация о компании";
+      default:
+        return "Другое";
     }
   };
 
-  const groupedBlocks = blocks.reduce((acc, block) => {
-    if (!acc[block.category]) acc[block.category] = [];
-    acc[block.category].push(block);
-    return acc;
-  }, {} as Record<BotBlock["category"], BotBlock[]>);
+  const groupedBlocks = blocks.reduce(
+    (acc, block) => {
+      if (!acc[block.category]) acc[block.category] = [];
+      acc[block.category].push(block);
+      return acc;
+    },
+    {} as Record<BotBlock["category"], BotBlock[]>
+  );
+
+  const cancelDelete = () => {
+    setDeleteModalOpen(false);
+    setBlockToDelete(null);
+  };
 
   if (!user || user.role !== "admin") {
     return null;
@@ -251,105 +277,107 @@ export default function AdminPanel() {
 
   return (
     <>
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="bg-white rounded-2xl shadow-xl mb-8 overflow-hidden">
-            <div className="bg-gradient-to-r from-slate-800 to-slate-900 p-6">
-              <h1 className="text-3xl font-bold text-white flex items-center gap-3 select-none">
-                <Settings size={32} />
-                Панель администратора
-              </h1>
-              <p className="text-slate-300 mt-2 select-none">Управление пользователями и настройка чат-бота</p>
-            </div>
-            
-            <div className="flex border-b border-gray-200 bg-white">
-              <button
-                onClick={() => setActiveTab("users")}
-                className={`px-6 py-4 font-medium transition-all duration-200 flex items-center gap-2 select-none cursor-pointer ${
-                  activeTab === "users"
-                    ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50"
-                    : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                }`}
-              >
-                <Users size={20} />
-                Пользователи
-              </button>
-              <button
-                onClick={() => setActiveTab("bot")}
-                className={`px-6 py-4 font-medium transition-all duration-200 flex items-center gap-2 select-none cursor-pointer ${
-                  activeTab === "bot"
-                    ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50"
-                    : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                }`}
-              >
-                <MessageSquare size={20} />
-                Конфигуратор чат-бота
-              </button>
-            </div>
-          </div>
+      <main className="min-h-screen bg-[#050505] px-4 py-6 text-white sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-[1440px] gap-4">
+          <section className="section-panel overflow-hidden p-5 sm:p-8">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <div className="section-eyebrow">Администрирование</div>
+                <h1 className="mt-5 flex items-center gap-3 text-3xl font-semibold text-white sm:text-4xl">
+                  <Settings size={32} />
+                  Панель администратора
+                </h1>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-500">
+                  Управление пользователями и настройка базы знаний ассистента CraftSigns.
+                </p>
+              </div>
 
-          {error && (
-            <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-lg mb-6">
-              {error}
+              <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-1">
+                <button
+                  onClick={() => setActiveTab("users")}
+                  className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition ${
+                    activeTab === "users" ? "bg-white text-black" : "text-zinc-400 hover:bg-white/[0.05] hover:text-white"
+                  }`}
+                  type="button"
+                >
+                  <Users size={18} />
+                  Пользователи
+                </button>
+                <button
+                  onClick={() => setActiveTab("bot")}
+                  className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition ${
+                    activeTab === "bot" ? "bg-white text-black" : "text-zinc-400 hover:bg-white/[0.05] hover:text-white"
+                  }`}
+                  type="button"
+                >
+                  <MessageSquare size={18} />
+                  Чат-бот
+                </button>
+              </div>
             </div>
-          )}
-          
-          {saveSuccess && (
-            <div className="bg-green-50 border-l-4 border-green-500 text-green-700 px-4 py-3 rounded-lg mb-6">
-              ✓ Конфигурация успешно сохранена!
-            </div>
-          )}
+          </section>
+
+          {error && <StatusMessage tone="danger" text={error} />}
+          {saveSuccess && <StatusMessage tone="success" text="Конфигурация успешно сохранена." />}
 
           {activeTab === "users" && (
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+            <section className="section-panel overflow-hidden">
+              <div className="flex items-center justify-between border-b border-white/10 p-5 sm:p-6">
+                <div>
+                  <h2 className="text-xl font-semibold text-white">Пользователи</h2>
+                  <p className="mt-1 text-sm text-zinc-500">Список аккаунтов и права администратора.</p>
+                </div>
+                <span className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-zinc-400">
+                  {loading ? "Загрузка" : `${users.length} записей`}
+                </span>
+              </div>
+
               {loading ? (
-                <div className="text-center py-12 select-none">Загрузка...</div>
+                <div className="p-10 text-center text-sm text-zinc-500">Загрузка...</div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                  <table className="min-w-full divide-y divide-white/10">
+                    <thead className="bg-white/[0.03]">
                       <tr>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider select-none">Пользователь</th>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider select-none">Email</th>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider select-none">Роль</th>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider select-none">Действия</th>
+                        <TableHead>Пользователь</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Роль</TableHead>
+                        <TableHead>Действия</TableHead>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {users.map((u) => (
-                        <tr key={u.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="font-medium text-gray-900 select-none">
-                              {u.first_name} {u.last_name}
+                    <tbody className="divide-y divide-white/10">
+                      {users.map((currentUser) => (
+                        <tr key={currentUser.id} className="transition hover:bg-white/[0.03]">
+                          <td className="whitespace-nowrap px-6 py-4">
+                            <div className="font-medium text-white">
+                              {currentUser.first_name} {currentUser.last_name}
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 select-none">
-                            {u.email}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium select-none ${
-                              u.role === 'admin' 
-                                ? 'bg-green-100 text-green-800' 
-                                : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {u.role === 'admin' ? 'Администратор' : 'Пользователь'}
+                          <td className="whitespace-nowrap px-6 py-4 text-sm text-zinc-500">{currentUser.email}</td>
+                          <td className="whitespace-nowrap px-6 py-4">
+                            <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-zinc-300">
+                              {currentUser.role === "admin" ? "Администратор" : "Пользователь"}
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                            {u.role !== 'admin' && (
+                          <td className="whitespace-nowrap px-6 py-4 text-sm">
+                            <div className="flex flex-wrap gap-2">
+                              {currentUser.role !== "admin" && (
+                                <button
+                                  onClick={() => handlePromote(currentUser.id)}
+                                  className="rounded-2xl bg-white px-3 py-2 text-xs font-medium text-black transition hover:bg-zinc-200"
+                                  type="button"
+                                >
+                                  Сделать админом
+                                </button>
+                              )}
                               <button
-                                onClick={() => handlePromote(u.id)}
-                                className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-lg text-xs transition-colors cursor-pointer select-none"
+                                onClick={() => handleDelete(currentUser.id)}
+                                className="rounded-2xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-100 transition hover:bg-red-500/20"
+                                type="button"
                               >
-                                Сделать админом
+                                Удалить
                               </button>
-                            )}
-                            <button
-                              onClick={() => handleDelete(u.id)}
-                              className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg text-xs transition-colors cursor-pointer select-none"
-                            >
-                              Удалить
-                            </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -357,152 +385,166 @@ export default function AdminPanel() {
                   </table>
                 </div>
               )}
-            </div>
+            </section>
           )}
 
           {activeTab === "bot" && (
-            <div className="space-y-6">
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <div className="flex justify-between items-center mb-6">
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900 select-none">Настройка базы знаний чат-бота</h2>
-                    <p className="text-sm text-gray-500 mt-1 select-none">
-                      Добавляйте правила, цены, услуги и информацию для обучения ИИ-ассистента
-                    </p>
-                  </div>
-                  <button
-                    onClick={saveBotConfig}
-                    disabled={botLoading}
-                    className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-6 py-2 rounded-lg font-medium transition-all flex items-center gap-2 shadow-lg cursor-pointer select-none"
-                  >
-                    <Save size={18} />
-                    {botLoading ? "Сохранение..." : "Сохранить все изменения"}
-                  </button>
+            <section className="section-panel p-5 sm:p-6">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold text-white">База знаний чат-бота</h2>
+                  <p className="mt-1 max-w-2xl text-sm leading-6 text-zinc-500">
+                    Добавляйте правила, цены, услуги и справочную информацию для ассистента.
+                  </p>
                 </div>
+                <button
+                  onClick={saveBotConfig}
+                  disabled={botLoading}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-medium text-black transition hover:bg-zinc-200 disabled:opacity-50"
+                  type="button"
+                >
+                  <Save size={17} />
+                  {botLoading ? "Сохранение..." : "Сохранить изменения"}
+                </button>
+              </div>
 
-                {botError && (
-                  <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-lg mb-6">
-                    {botError}
+              {botError && <div className="mt-5"><StatusMessage tone="danger" text={botError} /></div>}
+
+              {!showAddForm ? (
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  className="mt-6 flex w-full items-center justify-center gap-2 rounded-[24px] border border-white/10 bg-white/[0.04] px-5 py-4 text-sm font-medium text-white transition hover:bg-white/10"
+                  type="button"
+                >
+                  <Plus size={20} />
+                  Добавить новое правило, услугу или цену
+                </button>
+              ) : (
+                <div className="mt-6 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                  <div className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)_auto_auto]">
+                    <select
+                      value={newBlockCategory}
+                      onChange={(event) => setNewBlockCategory(event.target.value as BotBlock["category"])}
+                      className="h-11 rounded-2xl border border-white/10 bg-[#050505] px-4 text-sm text-white outline-none"
+                    >
+                      {categoryOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      value={newBlockType}
+                      onChange={(event) => setNewBlockType(event.target.value)}
+                      placeholder="Название, например: Цены на баннеры"
+                      className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-white/30"
+                    />
+                    <button
+                      onClick={addBlock}
+                      className="rounded-2xl bg-white px-5 py-2 text-sm font-medium text-black transition hover:bg-zinc-200"
+                      type="button"
+                    >
+                      Добавить
+                    </button>
+                    <button
+                      onClick={() => setShowAddForm(false)}
+                      className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+                      type="button"
+                    >
+                      Отмена
+                    </button>
                   </div>
-                )}
+                </div>
+              )}
 
-                {!showAddForm ? (
-                  <button
-                    onClick={() => setShowAddForm(true)}
-                    className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-3 rounded-xl font-medium transition-all flex items-center justify-center gap-2 mb-6 shadow-md cursor-pointer select-none"
-                  >
-                    <Plus size={20} />
-                    Добавить новое правило/услугу/цену
-                  </button>
-                ) : (
-                  <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 mb-6">
-                    <div className="flex gap-4 flex-wrap">
-                      <select
-                        value={newBlockCategory}
-                        onChange={(e) => setNewBlockCategory(e.target.value as BotBlock["category"])}
-                        className="px-4 py-2 text-gray-700 select-none cursor-pointer border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-                      >
-                        <option value="rules">📋 Правила</option>
-                        <option value="prices">💰 Цены</option>
-                        <option value="services">📦 Услуги</option>
-                        <option value="info">ℹ️ Информация</option>
-                      </select>
-                      <input
-                        type="text"
-                        value={newBlockType}
-                        onChange={(e) => setNewBlockType(e.target.value)}
-                        placeholder="Название (например: Цены на баннеры)"
-                        className="flex-1 text-gray-700 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent select-none"
-                      />
-                      <button
-                        onClick={addBlock}
-                        className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition-colors cursor-pointer select-none"
-                      >
-                        Добавить
-                      </button>
-                      <button
-                        onClick={() => setShowAddForm(false)}
-                        className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-6 py-2 rounded-lg font-medium transition-colors cursor-pointer select-none"
-                      >
-                        Отмена
-                      </button>
-                    </div>
-                  </div>
-                )}
-
+              <div className="mt-6 grid gap-4">
                 {Object.entries(groupedBlocks).map(([category, categoryBlocks]) => (
-                  <div key={category} className="bg-white rounded-xl shadow-lg overflow-hidden mb-6">
-                    <div className="bg-gradient-to-r from-gray-100 to-gray-50 px-6 py-4 border-b border-gray-200">
-                      <h3 className="font-semibold text-gray-800 flex items-center gap-2 select-none">
-                        {getCategoryIcon(category as BotBlock["category"])}
-                        {getCategoryTitle(category as BotBlock["category"])}
-                        <span className="text-sm text-gray-500 ml-2">({categoryBlocks.length})</span>
-                      </h3>
+                  <div key={category} className="overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.03]">
+                    <div className="flex items-center gap-2 border-b border-white/10 bg-white/[0.03] px-5 py-4 text-zinc-300">
+                      {getCategoryIcon(category as BotBlock["category"])}
+                      <h3 className="font-semibold text-white">{getCategoryTitle(category as BotBlock["category"])}</h3>
+                      <span className="ml-auto rounded-full border border-white/10 px-2 py-1 text-xs text-zinc-500">
+                        {categoryBlocks.length}
+                      </span>
                     </div>
-                    <div className="divide-y divide-gray-100">
+
+                    <div className="divide-y divide-white/10">
                       {categoryBlocks.map((block) => (
-                        <div key={block.id} className="p-4 hover:bg-gray-50 transition-colors">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
+                        <div key={block.id} className="p-4 transition hover:bg-white/[0.03]">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="min-w-0 flex-1">
                               <button
                                 onClick={() => toggleExpand(block.id)}
-                                className="flex items-center gap-2 hover:text-blue-600 transition-colors cursor-pointer select-none"
+                                className="flex items-center gap-2 text-left text-zinc-300 transition hover:text-white"
+                                type="button"
                               >
                                 {block.isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                                <h4 className="font-medium text-gray-900">{block.type}</h4>
+                                <span className="font-medium">{block.type}</span>
                               </button>
-                              
+
                               {block.isExpanded && (
-                                <div className="mt-3 ml-6">
+                                <div className="mt-4 pl-7">
                                   {editingId === block.id ? (
-                                    <div className="space-y-2">
+                                    <div className="grid gap-3">
                                       <textarea
                                         value={editContent}
-                                        onChange={(e) => setEditContent(e.target.value)}
-                                        className="w-full p-3 text-gray-700 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-h-[150px] font-mono text-sm"
+                                        onChange={(event) => setEditContent(event.target.value)}
+                                        className="min-h-[150px] w-full rounded-2xl border border-white/10 bg-[#050505] p-4 font-mono text-sm text-white outline-none placeholder:text-zinc-600 focus:border-white/30"
                                         placeholder="Введите содержание..."
                                         autoFocus
                                       />
                                       <div className="flex gap-2">
                                         <button
                                           onClick={() => saveEdit(block.id)}
-                                          className="bg-green-600 hover:bg-green-700 text-white px-4 py-1 rounded text-sm transition-colors flex items-center gap-1 cursor-pointer select-none"
+                                          className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-zinc-200"
+                                          type="button"
                                         >
                                           <Save size={14} />
                                           Сохранить
                                         </button>
                                         <button
-                                          onClick={cancelEdit}
-                                          className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-1 rounded text-sm transition-colors cursor-pointer select-none"
+                                          onClick={() => {
+                                            setEditingId(null);
+                                            setEditContent("");
+                                          }}
+                                          className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+                                          type="button"
                                         >
                                           Отмена
                                         </button>
                                       </div>
                                     </div>
                                   ) : (
-                                    <div className="bg-gray-100 rounded-lg p-3">
-                                      <div className="whitespace-pre-wrap text-sm text-gray-700 min-h-[50px] select-none">
-                                        {block.content || <span className="text-gray-400 italic">Нет содержания. Нажмите редактировать для добавления.</span>}
+                                    <div className="rounded-2xl border border-white/10 bg-[#050505] p-4">
+                                      <div className="min-h-[50px] whitespace-pre-wrap text-sm leading-6 text-zinc-400">
+                                        {block.content || <span className="text-zinc-600">Нет содержания. Нажмите редактировать для добавления.</span>}
                                       </div>
                                     </div>
                                   )}
                                 </div>
                               )}
                             </div>
-                            <div className="flex gap-1 ml-4">
+
+                            <div className="flex gap-1">
                               {!editingId && (
                                 <button
                                   onClick={() => startEdit(block.id, block.content)}
-                                  className="text-blue-600 hover:text-blue-700 p-1 rounded-full hover:bg-blue-100 transition-colors cursor-pointer select-none"
+                                  className="rounded-2xl p-2 text-zinc-400 transition hover:bg-white/10 hover:text-white"
                                   title="Редактировать"
+                                  type="button"
                                 >
                                   <Edit3 size={16} />
                                 </button>
                               )}
                               <button
-                                onClick={() => deleteBlock(block.id)}
-                                className="text-red-600 hover:text-red-700 p-1 rounded-full hover:bg-red-100 transition-colors cursor-pointer select-none"
+                                onClick={() => {
+                                  setDeleteModalOpen(true);
+                                  setBlockToDelete(block.id);
+                                }}
+                                className="rounded-2xl p-2 text-red-200 transition hover:bg-red-500/10 hover:text-red-100"
                                 title="Удалить"
+                                type="button"
                               >
                                 <Trash2 size={16} />
                               </button>
@@ -515,33 +557,43 @@ export default function AdminPanel() {
                 ))}
 
                 {blocks.length === 0 && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-8 text-center">
-                    <p className="text-yellow-800 select-none">Нет настроенных блоков. Нажмите "Добавить" чтобы начать.</p>
+                  <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-8 text-center text-sm text-zinc-500">
+                    Нет настроенных блоков. Нажмите Добавить, чтобы начать.
                   </div>
                 )}
               </div>
-            </div>
+            </section>
           )}
         </div>
-      </div>
+      </main>
 
       {deleteModalOpen && blockToDelete && (
-        <div className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4" onClick={cancelDelete}>
-          <div className="bg-white p-6 rounded-xl w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-start gap-4 mb-6">
-              <div className="p-3 bg-red-100 rounded-xl flex-shrink-0">
-                <Trash2 size={28} className="text-red-600" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md" onClick={cancelDelete}>
+          <div className="w-full max-w-md rounded-[26px] border border-white/10 bg-[#0b0b0c] p-6 shadow-[0_20px_70px_rgba(0,0,0,0.35)]" onClick={(event) => event.stopPropagation()}>
+            <div className="mb-6 flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-red-500/30 bg-red-500/10 text-red-100">
+                <Trash2 size={24} />
               </div>
-              <div className="flex-1 min-w-0">
-                <h2 className="text-2xl font-bold text-gray-900 mb-1 select-none">Удалить блок?</h2>
-                <p className="text-gray-600 text-sm select-none">Блок "{blocks.find(b => b.id === blockToDelete)?.type}" будет удален.</p>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-2xl font-semibold text-white">Удалить блок?</h2>
+                <p className="mt-2 text-sm leading-6 text-zinc-500">
+                  Блок {blocks.find((block) => block.id === blockToDelete)?.type} будет удален.
+                </p>
               </div>
             </div>
             <div className="flex gap-3">
-              <button onClick={confirmDelete} className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg font-medium transition-colors cursor-pointer select-none">
+              <button
+                onClick={confirmDelete}
+                className="flex-1 rounded-2xl border border-red-500/30 bg-red-500/10 py-3 text-sm font-medium text-red-100 transition hover:bg-red-500/20"
+                type="button"
+              >
                 Удалить
               </button>
-              <button onClick={cancelDelete} className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 py-3 rounded-lg font-medium transition-colors cursor-pointer select-none">
+              <button
+                onClick={cancelDelete}
+                className="flex-1 rounded-2xl bg-white py-3 text-sm font-medium text-black transition hover:bg-zinc-200"
+                type="button"
+              >
                 Отмена
               </button>
             </div>
@@ -551,3 +603,21 @@ export default function AdminPanel() {
     </>
   );
 }
+
+const TableHead = ({ children }: { children: React.ReactNode }) => (
+  <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-[0.24em] text-zinc-600">
+    {children}
+  </th>
+);
+
+const StatusMessage = ({ text, tone }: { text: string; tone: "danger" | "success" }) => (
+  <div
+    className={`rounded-[22px] border px-4 py-3 text-sm ${
+      tone === "danger"
+        ? "border-red-500/30 bg-red-500/10 text-red-100"
+        : "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
+    }`}
+  >
+    {text}
+  </div>
+);

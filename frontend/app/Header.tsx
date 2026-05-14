@@ -4,50 +4,52 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { AuthButton } from "@/components/AuthButton";
 
+const navItems = [
+  { href: "/#welcome", label: "Главная" },
+  { href: "/#portfolio", label: "Работы" },
+  { href: "/#services", label: "Услуги" },
+  { href: "/#contacts", label: "Контакты" },
+  { href: "/#delivery", label: "Доставка" },
+  { href: "/#ie", label: "ИП" },
+];
+
 function Header() {
   const { user } = useAuth();
+
   return (
-    <header className="bg-slate-950 h-16 flex items-center justify-center gap-0 px-4 select-none">
-
-      <Link href="/#" className="group transition-colors duration-300">
-        <div className="flex items-center gap-0 px-4">
-          <h1 className="font-bold text-slate-400 text-xl tracking-wider uppercase transition-colors duration-300 group-hover:text-slate-500">
-            CRAFT
-          </h1>
-          <h1 className="font-bold text-white text-xl tracking-wider uppercase transition-colors duration-300 group-hover:text-slate-300">
-            SIGNS
-          </h1>
-        </div>
-      </Link>
-
-      <Link href="/#welcome" className="mx-4 hover:text-slate-300 transition-colors">
-        ГЛАВНАЯ
-      </Link>
-      <Link href="/#portfolio" className="mx-4 hover:text-slate-300 transition-colors">
-        НАШИ РАБОТЫ
-      </Link>
-      <Link href="/#services" className="mx-4 hover:text-slate-300 transition-colors">
-        УСЛУГИ
-      </Link>
-      <Link href="/#contacts" className="mx-4 hover:text-slate-300 transition-colors">
-        КОНТАКТЫ
-      </Link>
-      <Link href="/#delivery" className="mx-4 hover:text-slate-300 transition-colors">
-        ДОСТАВКА
-      </Link>
-      <Link href="/#ie" className="mx-4 hover:text-slate-300 transition-colors">
-        ИП ВИСТЯКОВ Д. Г.
-      </Link>
-      
-      {user?.role === "admin" && (
-        <Link 
-          href="/admin"
-          className="mx-4 bg-white hover:bg-gray-700 text-gray-700 hover:text-white px-6 py-2 rounded-lg transition-all duration-300"
-        >
-          АДМИН ПАНЕЛЬ
+    <header className="sticky top-0 z-40 border-b border-white/10 bg-[#050505]/85 backdrop-blur-xl">
+      <div className="app-shell flex min-h-16 items-center justify-between gap-4 py-3">
+        <Link href="/#" className="group flex items-center gap-2">
+          <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-white/10 bg-white text-sm font-semibold text-black">
+            CS
+          </span>
+          <span className="text-base font-semibold tracking-wide text-white">
+            CraftSigns
+          </span>
         </Link>
-      )}
-      <AuthButton />  
+
+        <nav className="hidden items-center gap-1 lg:flex">
+          {navItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="rounded-2xl px-4 py-2 text-sm text-zinc-400 transition hover:bg-white/[0.06] hover:text-white"
+            >
+              {item.label}
+            </Link>
+          ))}
+          {user?.role === "admin" && (
+            <Link
+              href="/admin"
+              className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+            >
+              Админ-панель
+            </Link>
+          )}
+        </nav>
+
+        <AuthButton />
+      </div>
     </header>
   );
 }

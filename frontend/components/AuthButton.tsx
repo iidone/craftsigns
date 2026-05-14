@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { LogIn, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 type ModalMode = "login" | "register";
@@ -9,22 +10,19 @@ export const AuthButton = () => {
   const { user, login, logout } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>("login");
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
   const [regEmail, setRegEmail] = useState("");
   const [regPassword, setRegPassword] = useState("");
   const [regFirstName, setRegFirstName] = useState("");
   const [regLastName, setRegLastName] = useState("");
   const [regPatronymic, setRegPatronymic] = useState("");
-  
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLogin = async (event: React.FormEvent) => {
+    event.preventDefault();
     setError("");
     setLoading(true);
 
@@ -35,9 +33,7 @@ export const AuthButton = () => {
 
       const response = await fetch("/api/v1/users/login", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: formData.toString(),
       });
 
@@ -48,8 +44,7 @@ export const AuthButton = () => {
 
       const data = await response.json();
       login(data.access_token, data.user_info);
-      setIsModalOpen(false);
-      resetForm();
+      handleClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка авторизации");
     } finally {
@@ -57,8 +52,8 @@ export const AuthButton = () => {
     }
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleRegister = async (event: React.FormEvent) => {
+    event.preventDefault();
     setError("");
     setSuccessMessage("");
     setLoading(true);
@@ -66,9 +61,7 @@ export const AuthButton = () => {
     try {
       const response = await fetch("/api/v1/users/users", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: regEmail,
           password: regPassword,
@@ -83,7 +76,7 @@ export const AuthButton = () => {
         throw new Error(errorData.detail || "Ошибка регистрации");
       }
 
-      setSuccessMessage("Аккаунт успешно создан! Теперь вы можете войти.");
+      setSuccessMessage("Аккаунт создан. Теперь можно войти.");
       setModalMode("login");
       setEmail(regEmail);
       setPassword(regPassword);
@@ -113,13 +106,14 @@ export const AuthButton = () => {
 
   if (user) {
     return (
-      <div className="flex items-center gap-2 ml-4">
-        <span className="text-slate-300 text-sm mr-4">
+      <div className="flex items-center gap-2">
+        <span className="hidden text-sm text-zinc-400 sm:inline">
           {user.first_name} {user.last_name}
         </span>
         <button
           onClick={() => logout()}
-          className="bg-slate-600 cursor-pointer hover:text-slate-300 hover:bg-slate-700 transition-colors duration-300 px-4 py-2 rounded-lg"
+          className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+          type="button"
         >
           Выйти
         </button>
@@ -129,187 +123,121 @@ export const AuthButton = () => {
 
   return (
     <>
-      <div
+      <button
         onClick={() => setIsModalOpen(true)}
-        className="bg-slate-600 ml-4 cursor-pointer hover:text-slate-300 hover:bg-slate-700 transition-colors duration-300 px-4 py-2 rounded-lg"
+        className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-zinc-200"
+        type="button"
       >
+        <LogIn size={16} />
         Войти
-      </div>
+      </button>
 
       <div
-        className={`fixed inset-0 flex items-center justify-center z-50 transition-all duration-300 ${
-          isModalOpen
-            ? "bg-black/30 backdrop-blur-sm opacity-100"
-            : "bg-black/0 backdrop-blur-none pointer-events-none opacity-0"
+        className={`fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md transition ${
+          isModalOpen ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
         onClick={handleClose}
       >
         <div
-          className={`bg-gray-100 p-6 rounded-xl w-96 shadow-2xl transition-all duration-300 ${
-            isModalOpen
-              ? "scale-100 opacity-100 translate-y-0"
-              : "scale-95 opacity-0 translate-y-4 pointer-events-none"
+          className={`w-full max-w-[420px] rounded-[26px] border border-white/10 bg-[#0b0b0c] shadow-[0_20px_70px_rgba(0,0,0,0.35)] transition ${
+            isModalOpen ? "translate-y-0 scale-100 opacity-100" : "translate-y-3 scale-95 opacity-0"
           }`}
-          onClick={(e) => e.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
         >
-          {modalMode === "login" ? (
-            <>
-              <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
+          <div className="flex items-center justify-between border-b border-white/10 p-4">
+            <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white/[0.03] p-1">
+              <button
+                className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${modalMode === "login" ? "bg-white text-black" : "text-zinc-400 hover:bg-white/[0.04]"}`}
+                onClick={() => setModalMode("login")}
+                type="button"
+              >
                 Вход
-              </h2>
-              <form onSubmit={handleLogin}>
-                <div className="mb-5">
-                  <label className="block text-gray-600 mb-2 font-medium">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-4 py-3 bg-white text-gray-800 rounded-lg border border-gray-300 focus:border-gray-800 focus:outline-none transition-colors duration-200"
-                    required
-                  />
-                </div>
-                <div className="mb-5">
-                  <label className="block text-gray-600 mb-2 font-medium">
-                    Пароль
-                  </label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-4 py-3 bg-white text-gray-800 rounded-lg border border-gray-300 focus:border-gray-800 focus:outline-none transition-colors duration-200"
-                    required
-                  />
-                </div>
-                {error && (
-                  <p className="text-red-500 mb-4 text-center font-medium">
-                    {error}
-                  </p>
-                )}
-                <div className="flex gap-3 mt-6">
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="flex-1 cursor-pointer bg-gray-800 hover:bg-gray-900 text-white py-3 rounded-lg font-medium transition-all duration-200 hover:shadow-lg disabled:opacity-50"
-                  >
-                    {loading ? "Вход..." : "Войти"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleClose}
-                    className="flex-1 cursor-pointer bg-gray-300 hover:bg-gray-400 text-gray-800 py-3 rounded-lg font-medium transition-all duration-200"
-                  >
-                    Отмена
-                  </button>
-                </div>
-                <div className="mt-4 text-center">
-                  <button
-                    type="button"
-                    onClick={() => setModalMode("register")}
-                    className="text-gray-600 hover:text-gray-800 cursor-pointer text-sm underline"
-                  >
-                    Нет аккаунта? Зарегистрируйтесь
-                  </button>
-                </div>
-              </form>
-            </>
-          ) : (
-            <>
-              <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
+              </button>
+              <button
+                className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${modalMode === "register" ? "bg-white text-black" : "text-zinc-400 hover:bg-white/[0.04]"}`}
+                onClick={() => setModalMode("register")}
+                type="button"
+              >
                 Регистрация
-              </h2>
-              <form onSubmit={handleRegister}>
-                <div className="mb-4">
-                  <label className="block text-gray-600 mb-2 font-medium">
-                    Имя
-                  </label>
-                  <input
-                    type="text"
-                    value={regFirstName}
-                    onChange={(e) => setRegFirstName(e.target.value)}
-                    className="w-full px-4 py-3 bg-white text-gray-800 rounded-lg border border-gray-300 focus:border-gray-800 focus:outline-none transition-colors duration-200"
-                    required
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-gray-600 mb-2 font-medium">
-                    Фамилия
-                  </label>
-                  <input
-                    type="text"
-                    value={regLastName}
-                    onChange={(e) => setRegLastName(e.target.value)}
-                    className="w-full px-4 py-3 bg-white text-gray-800 rounded-lg border border-gray-300 focus:border-gray-800 focus:outline-none transition-colors duration-200"
-                    required
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-gray-600 mb-2 font-medium">
-                    Отчество (необязательно)
-                  </label>
-                  <input
-                    type="text"
-                    value={regPatronymic}
-                    onChange={(e) => setRegPatronymic(e.target.value)}
-                    className="w-full px-4 py-3 bg-white text-gray-800 rounded-lg border border-gray-300 focus:border-gray-800 focus:outline-none transition-colors duration-200"
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-gray-600 mb-2 font-medium">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={regEmail}
-                    onChange={(e) => setRegEmail(e.target.value)}
-                    className="w-full px-4 py-3 bg-white text-gray-800 rounded-lg border border-gray-300 focus:border-gray-800 focus:outline-none transition-colors duration-200"
-                    required
-                  />
-                </div>
-                <div className="mb-5">
-                  <label className="block text-gray-600 mb-2 font-medium">
-                    Пароль
-                  </label>
-                  <input
-                    type="password"
-                    value={regPassword}
-                    onChange={(e) => setRegPassword(e.target.value)}
-                    className="w-full px-4 py-3 bg-white text-gray-800 rounded-lg border border-gray-300 focus:border-gray-800 focus:outline-none transition-colors duration-200"
-                    required
-                  />
-                </div>
-                {error && (
-                  <p className="text-red-500 mb-4 text-center font-medium">
-                    {error}
-                  </p>
-                )}
-                {successMessage && (
-                  <p className="text-green-600 mb-4 text-center font-medium">
-                    {successMessage}
-                  </p>
-                )}
-                <div className="flex gap-3 mt-6">
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="flex-1 cursor-pointer bg-gray-800 hover:bg-gray-900 text-white py-3 rounded-lg font-medium transition-all duration-200 hover:shadow-lg disabled:opacity-50"
-                  >
-                    {loading ? "Регистрация..." : "Зарегистрироваться"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setModalMode("login")}
-                    className="flex-1 cursor-pointer bg-gray-300 hover:bg-gray-400 text-gray-800 py-3 rounded-lg font-medium transition-all duration-200"
-                  >
-                    Назад
-                  </button>
-                </div>
+              </button>
+            </div>
+            <button className="text-zinc-500 transition hover:text-white" onClick={handleClose} type="button">
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="p-5">
+            {modalMode === "login" ? (
+              <form className="grid gap-3" onSubmit={handleLogin}>
+                <ModalTitle title="Вход в аккаунт" text="Введите email и пароль, чтобы открыть личные функции сайта." />
+                <AuthField label="Email" type="email" value={email} onChange={setEmail} />
+                <AuthField label="Пароль" type="password" value={password} onChange={setPassword} />
+                <Feedback error={error} success={successMessage} />
+                <button className="h-11 rounded-2xl bg-white px-4 text-sm font-medium text-black transition hover:bg-zinc-200 disabled:opacity-50" disabled={loading}>
+                  {loading ? "Вход..." : "Войти"}
+                </button>
               </form>
-            </>
-          )}
+            ) : (
+              <form className="grid gap-3" onSubmit={handleRegister}>
+                <ModalTitle title="Регистрация" text="Создайте аккаунт для работы с заявками и личными функциями." />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <AuthField label="Имя" value={regFirstName} onChange={setRegFirstName} />
+                  <AuthField label="Фамилия" value={regLastName} onChange={setRegLastName} />
+                </div>
+                <AuthField label="Отчество" value={regPatronymic} onChange={setRegPatronymic} required={false} />
+                <AuthField label="Email" type="email" value={regEmail} onChange={setRegEmail} />
+                <AuthField label="Пароль" type="password" value={regPassword} onChange={setRegPassword} />
+                <Feedback error={error} success={successMessage} />
+                <button className="h-11 rounded-2xl bg-white px-4 text-sm font-medium text-black transition hover:bg-zinc-200 disabled:opacity-50" disabled={loading}>
+                  {loading ? "Создание..." : "Зарегистрироваться"}
+                </button>
+              </form>
+            )}
+          </div>
         </div>
       </div>
     </>
+  );
+};
+
+const ModalTitle = ({ title, text }: { title: string; text: string }) => (
+  <div className="mb-2">
+    <h2 className="text-xl font-semibold text-white">{title}</h2>
+    <p className="mt-1 text-sm leading-6 text-zinc-500">{text}</p>
+  </div>
+);
+
+const AuthField = ({
+  label,
+  value,
+  onChange,
+  type = "text",
+  required = true,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  required?: boolean;
+}) => (
+  <label className="grid gap-2 text-sm text-zinc-300">
+    <span>{label}</span>
+    <input
+      className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-white/30 focus:bg-white/[0.07]"
+      onChange={(event) => onChange(event.target.value)}
+      required={required}
+      type={type}
+      value={value}
+    />
+  </label>
+);
+
+const Feedback = ({ error, success }: { error: string; success: string }) => {
+  if (!error && !success) return null;
+
+  return (
+    <p className={`rounded-2xl border px-4 py-3 text-sm ${error ? "border-red-500/30 bg-red-500/10 text-red-100" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"}`}>
+      {error || success}
+    </p>
   );
 };

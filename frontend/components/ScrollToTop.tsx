@@ -29,18 +29,19 @@ export const ScrollToTop = () => {
     <button
       onClick={scrollToTop}
       className={`
-        fixed bottom-24 right-8 z-50 p-3 rounded-full bg-slate-500 text-slate-900 shadow-lg 
-        transition-all duration-300 hover:bg-slate-600 hover:scale-110 cursor-pointer active:scale-95
+        fixed bottom-24 right-5 z-50 rounded-2xl border border-white/10 bg-white p-3 text-black
+        shadow-[0_20px_70px_rgba(0,0,0,0.35)] transition-all duration-300 hover:bg-zinc-200 active:scale-95
         ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"}
       `}
       aria-label="Вверх"
+      type="button"
     >
       <svg
         xmlns="http://www.w3.org"
         fill="none"
         viewBox="0 0 24 24"
-        strokeWidth={3}
-        stroke="white"
+        strokeWidth={2.5}
+        stroke="currentColor"
         className="w-6 h-6"
       >
         <path

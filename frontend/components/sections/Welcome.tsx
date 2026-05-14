@@ -1,53 +1,71 @@
 import Link from "next/link";
 
+const benefits = [
+  "Вывески, баннеры и оформление под задачу бизнеса",
+  "Производство, монтаж и сопровождение в одном месте",
+  "Портфолио и услуги загружаются из административной части",
+  "Можно быстро оставить заявку на обратную связь",
+];
+
 export const Welcome = () => (
-  <section id="welcome" className=" md:min-h-screen py-3 md:py-6 px-4 md:px-8 bg-slate-800/90 flex flex-col items-center justify-center">
-    <div className="select-none p-8 md:p-12 flex gap-8 md:gap-12 max-w-6xl mx-auto w-full">
-      <div className="flex-1">
-        <div className="flex items-center gap-0 group cursor-default">
-          <h1 className="font-bold text-4xl md:text-5xl lg:text-6xl tracking-wider uppercase transition-colors duration-300 group-hover:text-slate-500">
-            CRAFT
-          </h1>
-          <h1 className="font-bold text-4xl md:text-5xl lg:text-6xl tracking-wider uppercase transition-colors duration-300 group-hover:text-slate-300">
-            SIGNS
-          </h1>
-        </div>
+  <section id="welcome" className="app-shell pt-6">
+    <div className="section-panel relative overflow-hidden p-5 sm:p-8 lg:p-10">
+      <div className="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-stretch">
+        <div className="flex min-h-[520px] flex-col justify-between gap-10">
+          <div>
+            <div className="section-eyebrow">Рекламное производство</div>
+            <h1 className="mt-6 max-w-4xl text-5xl font-semibold leading-none text-white sm:text-6xl lg:text-7xl">
+              CraftSigns
+            </h1>
+            <p className="mt-5 max-w-2xl text-base leading-7 text-zinc-400 sm:text-lg">
+              Изготавливаем рекламные конструкции: баннеры, объемные буквы,
+              неоновые вывески и декоративные элементы для компаний, которым
+              важно выглядеть аккуратно и заметно.
+            </p>
+          </div>
 
-        <div className="max-w-2xl my-4">
-          <p className="text-lg md:text-xl font-light text-slate-300 md:leading-relaxed leading-relaxed">
-            Мы — рекламная производственная компания <span className="text-white font-medium">CraftSigns</span>, 
-            которая изготавливает красивые баннеры, объёмные буквы, неоновые вывески и многое другое.
-          </p>
-        </div>
-
-        <div className="max-w-4xl mt-10">
-          <p className="text-slate-400 text-sm font-bold tracking-widest uppercase">
-            ПОЧЕМУ ИМЕННО МЫ:
-          </p>
-
-          <ul className="grid grid-cols-2 gap-y-4 gap-x-8 md:gap-y-6 md:gap-x-12">
-            {[
-              "Надежность и качество",
-              "Быстрое выполнение заказов",
-              "Приятная и доступная цена",
-              "Уважительное отношение к клиентам"
-            ].map((text, index) => (
-              <li key={index} className="flex items-center gap-3 text-white text-lg">
-                <span className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)] flex-shrink-0" />
-                {text}
-              </li>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {benefits.map((benefit) => (
+              <div
+                key={benefit}
+                className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4 text-sm leading-6 text-zinc-300"
+              >
+                {benefit}
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
-      </div>
 
-      <div className="flex flex-col justify-center items-center mr-30">
-        <Link 
-          href="#services" 
-          className="px-8 py-4 bg-yellow-500 hover:bg-yellow-300 hover:scale-102 text-slate-900 font-bold text-lg rounded-lg transition-all duration-300 shadow-[0_4px_15px_rgba(250,204,21,0.4)]"
-        >
-          Посмотреть услуги
-        </Link>
+        <aside className="flex flex-col justify-between rounded-[26px] border border-white/10 bg-[radial-gradient(circle_at_top,#171717_0%,#0b0b0c_58%,#070707_100%)] p-5">
+          <div>
+            <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">
+              Быстрый старт
+            </p>
+            <h2 className="mt-4 text-2xl font-semibold text-white">
+              Посмотрите работы и выберите формат услуги
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-zinc-500">
+              Сайт сохраняет структуру дипломного проекта: портфолио, услуги,
+              контакты, доставка, реквизиты и личный вход.
+            </p>
+          </div>
+
+          <div className="mt-8 grid gap-3">
+            <Link
+              href="#services"
+              className="rounded-2xl bg-white px-5 py-3 text-center text-sm font-medium text-black transition hover:bg-zinc-200"
+            >
+              Смотреть услуги
+            </Link>
+            <Link
+              href="#contacts"
+              className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-center text-sm font-medium text-white transition hover:bg-white/10"
+            >
+              Оставить заявку
+            </Link>
+          </div>
+        </aside>
       </div>
     </div>
   </section>
