@@ -35,12 +35,14 @@ body {
   color: var(--foreground);
   font-family: "Segoe UI Variable Display", Arial, Helvetica, sans-serif;
   text-rendering: optimizeLegibility;
+  user-select: none;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 button {
   cursor: pointer;
+  user-select: none;
 }
 
 a:focus-visible,

@@ -27,6 +27,14 @@ def allowed_file(filename: str) -> bool:
 def get_file_extension(filename: str) -> str:
     return filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
 
+def remove_uploaded_file(photo_url: Optional[str]) -> None:
+    if not photo_url or not photo_url.startswith("/static/uploads/"):
+        return
+
+    file_path = photo_url.lstrip("/")
+    if os.path.exists(file_path):
+        os.remove(file_path)
+
 @router.get("/portfolio", response_model=List[PortfolioResponse], tags=['Портфолио и услуги'], summary=['Получить все элементы портфолио'])
 async def get_all_portfolio(session: SessionDep):
     try:
@@ -161,4 +169,48 @@ async def create_service(
     except Exception as e:
         await session.rollback()
         raise HTTPException(status_code=500, detail=f'error to create service: {str(e)}')
+
+
+@router.delete("/portfolio/{portfolio_id}", tags=['Портфолио и услуги'], summary=['Удалить элемент портфолио'])
+async def delete_portfolio(
+    portfolio_id: int,
+    session: SessionDep,
+):
+    try:
+        portfolio = await session.get(PortfolioModel, portfolio_id)
+        if not portfolio:
+            raise HTTPException(status_code=404, detail="Элемент портфолио не найден")
+
+        remove_uploaded_file(portfolio.photo_url)
+        await session.delete(portfolio)
+        await session.commit()
+        return {"message": "Элемент портфолио удален"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        await session.rollback()
+        raise HTTPException(status_code=500, detail=f'error to delete portfolio element: {str(e)}')
+
+
+@router.delete("/services/{service_id}", tags=['Портфолио и услуги'], summary=['Удалить услугу'])
+async def delete_service(
+    service_id: int,
+    session: SessionDep,
+):
+    try:
+        service = await session.get(ServicesModel, service_id)
+        if not service:
+            raise HTTPException(status_code=404, detail="Услуга не найдена")
+
+        remove_uploaded_file(service.photo_url)
+        await session.delete(service)
+        await session.commit()
+        return {"message": "Услуга удалена"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        await session.rollback()
+        raise HTTPException(status_code=500, detail=f'error to delete service: {str(e)}')
         
