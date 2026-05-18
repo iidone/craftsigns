@@ -51,10 +51,17 @@ const ticketStatusLabels: Record<string, string> = {
 };
 
 const availableContactTypes = [
-  { value: "Телефон", label: "📱 Телефон" },
-  { value: "Telegram", label: "💬 Telegram" },
-  { value: "WhatsApp", label: "📲 WhatsApp" },
+  { value: "phone", label: "Телефон" },
+  { value: "telegram", label: "Telegram" },
+  { value: "whatsapp", label: "WhatsApp" },
 ];
+
+const typeLabels: Record<string, string> = {
+  phone: "Телефон",
+  telegram: "Telegram",
+  whatsapp: "WhatsApp",
+  Email: "Email",
+};
 
 export default function DashboardPage() {
   const { token, user } = useAuth();
@@ -83,7 +90,7 @@ export default function DashboardPage() {
 
   const fullName = `${user?.first_name ?? ""} ${user?.last_name ?? ""} ${user?.patronymic ?? ""}`.trim();
   const [ticketForm, setTicketForm] = useState({ name: fullName, phone: "", email: "", description: "" });
-  const [contactForm, setContactForm] = useState({ type: "Телефон", value: "", comment: "" });
+  const [contactForm, setContactForm] = useState({ type: "phone", value: "", comment: "" });
 
   useEffect(() => {
     setTicketForm((s) => ({ ...s, name: fullName }));
@@ -149,7 +156,7 @@ export default function DashboardPage() {
     });
 
     if (response.ok) {
-      setContactForm({ type: "Телефон", value: "", comment: "" });
+      setContactForm({ type: "phone", value: "", comment: "" });
       showMessage("✅ Способ связи добавлен");
       await loadData();
       return;
@@ -331,15 +338,12 @@ export default function DashboardPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs uppercase tracking-[0.18em] text-zinc-600">
-                        {contact.type === "Email" ? "✉️ Email" : 
-                         contact.type === "Телефон" ? "📱 Телефон" :
-                         contact.type === "Telegram" ? "💬 Telegram" :
-                         contact.type === "WhatsApp" ? "📲 WhatsApp" : contact.type}
+                        {typeLabels[contact.type] || contact.type}
                       </p>
                       <h3 className="mt-1 font-semibold">{contact.value}</h3>
                       {contact.comment && <p className="mt-2 text-sm text-zinc-500">{contact.comment}</p>}
                       {contact.is_locked && (
-                        <p className="mt-1 text-xs text-zinc-600">🔒 Закреплено</p>
+                        <p className="mt-1 text-xs text-zinc-600">Закреплено</p>
                       )}
                     </div>
                     {contact.type !== "Email" && !contact.is_locked && (
@@ -360,8 +364,8 @@ export default function DashboardPage() {
       </div>
 
       {deleteModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md">
-          <div className="w-full max-w-md rounded-[26px] border border-white/10 bg-[#0b0b0c] p-6 shadow-[0_20px_70px_rgba(0,0,0,0.35)]">
+        <ModalMount onRequestClose={closeDeleteModal}>
+          <div className="w-full max-w-md rounded-[26px] border border-white/10 bg-[#0b0b0c] p-6 shadow-[0_20px_70px_rgba(0,0,0,0.35)]" role="dialog" aria-modal="true">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-semibold text-white">Подтверждение удаления</h3>
               <button
@@ -374,7 +378,7 @@ export default function DashboardPage() {
             </div>
             <p className="text-zinc-300 mb-6">
               Вы уверены, что хотите удалить способ связи<br />
-              <span className="font-semibold text-white">{deleteModal.contactType}: {deleteModal.contactValue}</span>?
+              <span className="font-semibold text-white">{typeLabels[deleteModal.contactType] || deleteModal.contactType}: {deleteModal.contactValue}</span>?
             </p>
             <div className="flex gap-3">
               <button
@@ -393,7 +397,7 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
-        </div>
+        </ModalMount>
       )}
     </main>
   );
@@ -458,9 +462,65 @@ function Empty({ text }: { text: string }) {
 }
 
 function formatDate(value: string | null) {
-  return value ? new Date(value).toLocaleDateString("ru-RU") : "-";
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+
+  // SSR/CSR-safe formatting (avoid locale/timezone differences)
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  return `${dd}.${mm}.${yyyy}`;
 }
 
 function formatDateTime(value: string) {
-  return new Date(value).toLocaleString("ru-RU");
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const min = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${dd}.${mm}.${yyyy} ${hh}:${min}`;
+}
+
+function ModalMount({
+  children,
+  onRequestClose,
+}: {
+  children: React.ReactNode;
+  onRequestClose: () => void;
+}) {
+  const [isClosing, setIsClosing] = useState(false);
+
+  const close = () => {
+    setIsClosing(true);
+    window.setTimeout(() => {
+      onRequestClose();
+      setIsClosing(false);
+    }, 220);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md transition-opacity duration-220"
+      style={{ opacity: isClosing ? 0 : 1 }}
+      role="presentation"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) close();
+      }}
+    >
+      <div
+        className="transition-all duration-220"
+        style={{
+          opacity: isClosing ? 0 : 1,
+          transform: isClosing ? "translateY(10px) scale(0.98)" : "translateY(0) scale(1)",
+        }}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
+    </div>
+  );
 }

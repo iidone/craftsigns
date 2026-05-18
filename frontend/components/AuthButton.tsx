@@ -105,9 +105,12 @@ export const AuthButton = () => {
     setSuccessMessage("");
   };
 
+  const [isClosing, setIsClosing] = useState(false);
+
   const handleClose = () => {
-    // soft close
+    // Снимаем overlay сразу, чтобы он не перекрывал клики во время анимации
     setIsModalOpen(false);
+    setIsClosing(false);
     resetForm();
   };
 
@@ -155,16 +158,20 @@ export const AuthButton = () => {
         Войти
       </button>
 
-      <div
-        className={`fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md transition-opacity duration-300 ${
-          isModalOpen ? "opacity-100" : "pointer-events-none opacity-0"
-        }`}
-        onClick={handleClose}
-      >
+      {(isModalOpen || isClosing) && (
         <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md transition-opacity duration-300"
+          style={{ opacity: isClosing ? 0 : 1 }}
+          onClick={handleClose}
+        >
+          <div
           className={`w-full max-w-[420px] my-auto rounded-[26px] border border-white/10 bg-[#0b0b0c] shadow-[0_20px_70px_rgba(0,0,0,0.35)] transition-all duration-300 will-change-transform ${
             isModalOpen ? "scale-100 opacity-100" : "scale-95 opacity-0"
           }`}
+          style={{
+            opacity: isClosing ? 0 : 1,
+            transform: isClosing ? "scale(0.98) translateY(10px)" : "scale(1) translateY(0)",
+          }}
           onClick={(event) => event.stopPropagation()}
         >
           <div className="flex items-center justify-between border-b border-white/10 p-4">

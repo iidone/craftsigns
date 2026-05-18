@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Eye, X } from "lucide-react";
 
+
 interface PortfolioItem {
   id: number;
   name: string;
@@ -15,6 +16,16 @@ export const Portfolio = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<PortfolioItem | null>(null);
+  const [isClosing, setIsClosing] = useState(false);
+
+  const close = () => {
+    setIsClosing(true);
+    window.setTimeout(() => {
+      setSelectedItem(null);
+      setIsClosing(false);
+    }, 220);
+  };
+
 
   useEffect(() => {
     const fetchPortfolio = async () => {
@@ -66,30 +77,45 @@ export const Portfolio = () => {
         </div>
       </section>
 
-      {selectedItem && (
+      {(selectedItem || isClosing) && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-md animate-fade-in"
-          onClick={() => setSelectedItem(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-md transition-all duration-200"
+          style={{
+            opacity: isClosing ? 0 : 1,
+            transform: isClosing ? "translateY(10px) scale(0.98)" : "translateY(0) scale(1)",
+          }}
+          onClick={close}
         >
           <button
             className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] text-white transition hover:bg-white/10"
-            onClick={() => setSelectedItem(null)}
+            onClick={close}
             type="button"
           >
             <X size={20} />
           </button>
-          <div className="relative max-h-[90vh] max-w-[94vw] overflow-hidden rounded-[26px] border border-white/10 bg-[#0b0b0c] animate-scale-in" onClick={(event) => event.stopPropagation()}>
-            <img
-              src={selectedItem.photo_url ? `/api${selectedItem.photo_url}` : "/images/bg.jpg"}
-              alt={selectedItem.name}
-              className="max-h-[78vh] w-full object-contain"
-            />
-            <div className="border-t border-white/10 bg-[#0b0b0c] p-5">
-              <h3 className="text-xl font-semibold text-white">{selectedItem.name}</h3>
-              {selectedItem.description && (
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">{selectedItem.description}</p>
-              )}
-            </div>
+          <div
+            className="relative max-h-[90vh] max-w-[94vw] overflow-hidden rounded-[26px] border border-white/10 bg-[#0b0b0c] transition-all duration-200"
+            style={{
+              opacity: isClosing ? 0 : 1,
+              transform: isClosing ? "translateY(10px) scale(0.98)" : "translateY(0) scale(1)",
+            }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            {selectedItem ? (
+              <>
+                <img
+                  src={selectedItem.photo_url ? `/api${selectedItem.photo_url}` : "/images/bg.jpg"}
+                  alt={selectedItem.name}
+                  className="max-h-[78vh] w-full object-contain"
+                />
+                <div className="border-t border-white/10 bg-[#0b0b0c] p-5">
+                  <h3 className="text-xl font-semibold text-white">{selectedItem.name}</h3>
+                  {selectedItem.description && (
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">{selectedItem.description}</p>
+                  )}
+                </div>
+              </>
+            ) : null}
           </div>
         </div>
       )}

@@ -127,7 +127,7 @@ export const ChatWidget = () => {
 
       {(isOpen || isClosing) && (
         <div
-          className="flex h-[500px] w-[min(350px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[26px] border border-white/10 bg-[#0b0b0c] shadow-[0_20px_70px_rgba(0,0,0,0.35)] animate-scale-in transition-all duration-200"
+          className="flex h-[500px] w-[min(350px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[26px] border border-white/10 bg-[#0b0b0c] shadow-[0_20px_70px_rgba(0,0,0,0.35)] transition-all duration-220"
           style={{
             opacity: isClosing ? 0 : 1,
             transform: isClosing ? "translateY(10px) scale(0.98)" : "translateY(0) scale(1)",

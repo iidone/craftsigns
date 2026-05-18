@@ -1,5 +1,8 @@
 from typing_extensions import List
 from fastapi import APIRouter, HTTPException, status, Depends, Response, Path, Form, File, UploadFile, BackgroundTasks, Request
+import os
+from datetime import timedelta
+
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.security import OAuth2PasswordRequestForm
@@ -48,7 +51,13 @@ async def register_user(session: SessionDep, user_data: CreateUser):
                 status_code=400,
                 detail="Пользователь с таким email уже существует"
             )
+
+        from src.utils.email_verification import generate_email_verify_token, default_expiry
+        from src.services.EmailService import send_email
+
         hashed_password = get_password_hash(user_data.password)
+        token = generate_email_verify_token()
+        expires_at = default_expiry(60)
 
         user = UsersModel(
             email=user_data.email,
@@ -57,12 +66,26 @@ async def register_user(session: SessionDep, user_data: CreateUser):
             last_name=user_data.last_name,
             patronymic=user_data.patronymic,
             role="common",
-            date_of_reg=date.today()
+            date_of_reg=date.today(),
+            is_active=False,
+            email_verify_token=token,
+            email_verify_expires_at=expires_at,
         )
 
         session.add(user)
         await session.commit()
         await session.refresh(user)
+
+        base_url = os.getenv("EMAIL_VERIFY_BASE_URL") or "http://localhost:8000"
+        verify_url = f"{base_url}/v1/users/verify-email?token={token}"
+
+        send_email(
+            "Подтвердите email",
+            f"Здравствуйте, {user.first_name}!\n\n"
+            f"Для активации аккаунта перейдите по ссылке:\n{verify_url}\n\n"
+            f"Если вы не создавали аккаунт, просто проигнорируйте письмо.",
+            recipients=[user.email],
+        )
 
         return user
     
@@ -76,11 +99,38 @@ async def register_user(session: SessionDep, user_data: CreateUser):
         )
     
 
+    
+
+@router.get("/verify-email", tags=["Пользователи"], summary="Подтверждение email")
+async def verify_email(token: str, session: SessionDep):
+    try:
+        result = await session.execute(select(UsersModel).where(UsersModel.email_verify_token == token))
+        user = result.scalar_one_or_none()
+        if not user or not getattr(user, "email_verify_token", None):
+            raise HTTPException(status_code=400, detail="Неверный или использованный токен")
+
+        expires_at = getattr(user, "email_verify_expires_at", None)
+        if expires_at and expires_at < datetime.utcnow():
+            raise HTTPException(status_code=400, detail="Срок действия токена истёк")
+
+        user.is_active = True
+        user.email_verify_token = None
+        user.email_verify_expires_at = None
+        await session.commit()
+        return {"message": "Email успешно подтвержден"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await session.rollback()
+        raise HTTPException(status_code=500, detail=f"Verify error: {str(e)}")
+
+
 @router.post("/login", tags=["Пользователи"], summary="Авторизация", include_in_schema=False)
 async def login_user(
     session: SessionDep,
     form_data: OAuth2PasswordRequestForm = Depends()
 ):
+
     try:
         user = await authenticate_user(form_data.username, form_data.password, session)
         if not user:
@@ -89,6 +139,13 @@ async def login_user(
                 detail="Неверный email или пароль",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+
+        if not getattr(user, "is_active", True):
+            raise HTTPException(
+                status_code=403,
+                detail="Аккаунт не активирован. Проверьте почту.",
+            )
+
 
         access_token = create_access_token(data={"sub": user.email})
 

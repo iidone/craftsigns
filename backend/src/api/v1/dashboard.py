@@ -4,6 +4,46 @@ from typing import List
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select
 
+
+def canonical_contact_type(type_str: str) -> str:
+    """Приводит тип контакта к каноническому виду для корректной проверки уникальности.
+
+    Ожидаемые канонические значения: phone, telegram, whatsapp
+    """
+
+    if type_str is None:
+        return ""
+
+    t = type_str.strip().lower()
+
+    aliases = {
+        "телефон": "phone",
+        "phone": "phone",
+        "+телефон": "phone",
+        "telegram": "telegram",
+        "телеграм": "telegram",
+        "телеграмм": "telegram",
+        "whatsapp": "whatsapp",
+        "вацап": "whatsapp",
+        "вацапп": "whatsapp",
+        "ватсап": "whatsapp",
+        "whats app": "whatsapp",
+    }
+
+    if t in aliases:
+        return aliases[t]
+
+    if "телефон" in t or t == "phone":
+        return "phone"
+    if "telegram" in t or "телеграм" in t:
+        return "telegram"
+    if "whatsapp" in t or "вац" in t or "ватс" in t:
+        return "whatsapp"
+
+    return t
+
+
+from src.api.v1.dashboard_admin_notify import send_ticket_notification_to_staff
 from src.database.deps import SessionDep
 from src.models.contact_methods import ContactMethodModel
 from src.models.orders import OrdersModel
@@ -14,6 +54,7 @@ from src.schemas.orders import OrdersResponse
 from src.schemas.tickets import TicketCreate, TicketsResponse
 from src.services.AuthService import get_current_user
 from src.services.EmailService import send_email
+
 
 router = APIRouter(prefix="/v1/dashboard", tags=["Личный кабинет"])
 
@@ -36,16 +77,20 @@ async def create_public_ticket(
     await session.commit()
     await session.refresh(ticket)
 
-    background_tasks.add_task(
-        send_email,
-        "Новая заявка на обратную связь",
-        (
-            f"Имя: {ticket.name}\n"
-            f"Телефон: {ticket.phone or '-'}\n"
-            f"Email: {ticket.email or '-'}\n"
-            f"Описание: {ticket.description or '-'}"
-        ),
+    body = (
+        f"Имя: {ticket.name}\n"
+        f"Телефон: {ticket.phone or '-'}\n"
+        f"Email: {ticket.email or '-'}\n"
+        f"Описание: {ticket.description or '-'}"
     )
+
+    await send_ticket_notification_to_staff(
+        session=session,
+        subject="Новая заявка на обратную связь",
+        body=body,
+        background_tasks=background_tasks,
+    )
+
     return ticket
 
 
@@ -84,18 +129,22 @@ async def create_my_ticket(
     await session.commit()
     await session.refresh(ticket)
 
-    background_tasks.add_task(
-        send_email,
-        "Новая заявка на обратную связь",
-        (
-            f"Клиент: {current_user.first_name} {current_user.last_name}\n"
-            f"Email аккаунта: {current_user.email}\n"
-            f"Имя в заявке: {ticket.name}\n"
-            f"Телефон: {ticket.phone or '-'}\n"
-            f"Email: {ticket.email or '-'}\n"
-            f"Описание: {ticket.description or '-'}"
-        ),
+    body = (
+        f"Клиент: {current_user.first_name} {current_user.last_name}\n"
+        f"Email аккаунта: {current_user.email}\n"
+        f"Имя в заявке: {ticket.name}\n"
+        f"Телефон: {ticket.phone or '-'}\n"
+        f"Email: {ticket.email or '-'}\n"
+        f"Описание: {ticket.description or '-'}"
     )
+
+    await send_ticket_notification_to_staff(
+        session=session,
+        subject="Новая заявка на обратную связь",
+        body=body,
+        background_tasks=background_tasks,
+    )
+
     return ticket
 
 
@@ -114,13 +163,13 @@ async def get_contact_methods(session: SessionDep, current_user: UsersModel = De
         user_id=current_user.id,
         type="Email",
         value=current_user.email,
-        comment="Основной email (закреплён)",
+        comment="Основной email",
         created_at=datetime.now(),
     )
 
     setattr(email_contact, "is_locked", True)
     setattr(email_contact, "is_virtual", True)
-    
+
     return [email_contact] + contacts
 
 
@@ -131,36 +180,41 @@ async def create_contact_method(
     session: SessionDep,
     current_user: UsersModel = Depends(get_current_user),
 ):
-    if contact_data.type.lower() == "email":
-        raise HTTPException(status_code=400, detail="Email закреплён и не может быть добавлен через форму")
-    
-    desired_type = (contact_data.type or "").strip()
-    
+    if canonical_contact_type(contact_data.type) == "email":
+        raise HTTPException(
+            status_code=400,
+            detail="Email закреплён и не может быть добавлен через форму",
+        )
+
+    desired_type_canonical = canonical_contact_type(contact_data.type)
+
     result = await session.execute(
-        select(ContactMethodModel)
-        .where(ContactMethodModel.user_id == current_user.id)
-        .where(ContactMethodModel.type != "Email")
+        select(ContactMethodModel).where(ContactMethodModel.user_id == current_user.id)
     )
-    
     existing_contacts = result.scalars().all()
 
     for contact in existing_contacts:
-        if contact.type.lower() == desired_type.lower():
+        existing_canonical = canonical_contact_type(contact.type)
+        if existing_canonical == desired_type_canonical:
             raise HTTPException(
-                status_code=409, 
-                detail=f"У вас уже есть способ связи типа '{contact_data.type}'. Нельзя добавить ещё один."
+                status_code=409,
+                detail=(
+                    f"У вас уже есть способ связи типа '{desired_type_canonical}'. "
+                    "Нельзя добавить ещё один."
+                ),
             )
-    
+
     contact = ContactMethodModel(
         user_id=current_user.id,
-        type=contact_data.type,
+        type=desired_type_canonical,
         value=contact_data.value,
         comment=contact_data.comment,
     )
+
     session.add(contact)
     await session.commit()
     await session.refresh(contact)
-    
+
     background_tasks.add_task(
         send_email,
         "Новый способ связи клиента",
@@ -183,14 +237,15 @@ async def delete_contact_method(
 ):
     if contact_id == -1:
         raise HTTPException(status_code=400, detail="Нельзя удалить закреплённый email")
-    
+
     contact = await session.get(ContactMethodModel, contact_id)
     if not contact or contact.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Способ связи не найден")
-    
+
     if contact.type.lower() == "email":
         raise HTTPException(status_code=400, detail="Нельзя удалить закреплённый email")
-    
+
     await session.delete(contact)
     await session.commit()
     return {"message": "Способ связи удалён"}
+
