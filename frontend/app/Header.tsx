@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { AuthButton } from "@/components/AuthButton";
 
@@ -13,19 +14,22 @@ const navItems = [
   { href: "/#ie", label: "ИП" },
 ];
 
-function Header() {
+export default function Header() {
   const { user } = useAuth();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/10 bg-[#050505]/85 backdrop-blur-xl">
-      <div className="app-shell flex min-h-16 items-center justify-between gap-4 py-3">
-        <Link href="/#" className="group flex items-center gap-2">
+    <header className="sticky top-0 z-40 bg-[#050505]/90 backdrop-blur">
+      <div className="app-shell flex h-20 items-center justify-between">
+        <Link href="/" className="flex items-center gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-white/10 bg-white text-sm font-semibold text-black">
             CS
           </span>
-          <span className="text-base font-semibold tracking-wide text-white">
-            CraftSigns
-          </span>
+          <span className="text-base font-semibold tracking-wide text-white">CraftSigns</span>
         </Link>
 
         <nav className="hidden items-center gap-1 lg:flex">
@@ -38,12 +42,23 @@ function Header() {
               {item.label}
             </Link>
           ))}
-          {user?.role === "admin" && (
+
+          {mounted && user && !(user.role === "admin" || user.role === "moderator") && (
+            <Link
+              href="/dashboard"
+              className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+            >
+              Личный кабинет
+            </Link>
+          )}
+
+
+          {mounted && (user?.role === "admin" || user?.role === "moderator") && (
             <Link
               href="/admin"
               className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
             >
-              Админ-панель
+              Админ панель
             </Link>
           )}
         </nav>
@@ -54,4 +69,3 @@ function Header() {
   );
 }
 
-export default Header;

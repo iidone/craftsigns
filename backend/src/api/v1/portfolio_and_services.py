@@ -21,6 +21,13 @@ ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'webp'}
 MAX_FILE_SIZE = 20 * 1024 * 1024
 UPLOAD_DIR = "static/uploads/portfolio"
 
+STAFF_ROLES = {"admin", "moderator"}
+
+
+def ensure_staff(user: UsersModel) -> None:
+    if user.role not in STAFF_ROLES:
+        raise HTTPException(status_code=403, detail="Доступ только для администратора или модератора")
+
 def allowed_file(filename: str) -> bool:
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
@@ -62,9 +69,10 @@ async def create_portfolio(
     description: Optional[str] = Form(None),
     photo_url: Optional[str] = Form(None),
     photo_file: Optional[UploadFile] = File(None),
-    # current_user: UsersModel = Depends(get_current_user)  # removed to match create_service
+    current_user: UsersModel = Depends(get_current_user)
 ):
     try:
+        ensure_staff(current_user)
         final_photo_url = photo_url
 
         if photo_file:
@@ -119,9 +127,11 @@ async def create_service(
     description: Optional[str] = Form(None),
     price: Optional[str] = Form(None),
     photo_url: Optional[str] = Form(None),
-    photo_file: Optional[UploadFile] = File(None)
+    photo_file: Optional[UploadFile] = File(None),
+    current_user: UsersModel = Depends(get_current_user)
 ):
     try:
+        ensure_staff(current_user)
         final_photo_url = photo_url
         SERVICES_UPLOAD_DIR = "static/uploads/services"
 
@@ -175,8 +185,10 @@ async def create_service(
 async def delete_portfolio(
     portfolio_id: int,
     session: SessionDep,
+    current_user: UsersModel = Depends(get_current_user),
 ):
     try:
+        ensure_staff(current_user)
         portfolio = await session.get(PortfolioModel, portfolio_id)
         if not portfolio:
             raise HTTPException(status_code=404, detail="Элемент портфолио не найден")
@@ -197,8 +209,10 @@ async def delete_portfolio(
 async def delete_service(
     service_id: int,
     session: SessionDep,
+    current_user: UsersModel = Depends(get_current_user),
 ):
     try:
+        ensure_staff(current_user)
         service = await session.get(ServicesModel, service_id)
         if not service:
             raise HTTPException(status_code=404, detail="Услуга не найдена")

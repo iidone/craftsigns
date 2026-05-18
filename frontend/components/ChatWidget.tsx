@@ -12,6 +12,19 @@ interface Message {
 
 export const ChatWidget = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+
+  const close = () => {
+    setIsClosing(true);
+    window.setTimeout(() => {
+      setIsOpen(false);
+      setIsClosing(false);
+    }, 220);
+  };
+
+
+
+
   const [message, setMessage] = useState("");
   const [chatId, setChatId] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -102,7 +115,7 @@ export const ChatWidget = () => {
 
   return (
     <div className="fixed bottom-5 right-5 z-[100] font-sans">
-      {!isOpen && (
+      {!isOpen && !isClosing && (
         <button
           onClick={() => setIsOpen(true)}
           className="rounded-2xl border border-white/10 bg-white p-4 text-black shadow-[0_20px_70px_rgba(0,0,0,0.35)] transition hover:bg-zinc-200 active:scale-95"
@@ -112,14 +125,28 @@ export const ChatWidget = () => {
         </button>
       )}
 
-      {isOpen && (
-        <div className="flex h-[500px] w-[min(350px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[26px] border border-white/10 bg-[#0b0b0c] shadow-[0_20px_70px_rgba(0,0,0,0.35)] animate-scale-in">
+      {(isOpen || isClosing) && (
+        <div
+          className="flex h-[500px] w-[min(350px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[26px] border border-white/10 bg-[#0b0b0c] shadow-[0_20px_70px_rgba(0,0,0,0.35)] animate-scale-in transition-all duration-200"
+          style={{
+            opacity: isClosing ? 0 : 1,
+            transform: isClosing ? "translateY(10px) scale(0.98)" : "translateY(0) scale(1)",
+          }}
+        >
+
+
           <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.03] p-4">
             <div className="flex items-center gap-2 text-white">
               <Bot className="text-zinc-300" size={20} />
               <span className="select-none font-semibold">Ассистент CraftSigns</span>
             </div>
-            <button onClick={() => setIsOpen(false)} className="text-zinc-500 transition hover:text-white" type="button">
+            <button
+              onClick={() => {
+                close();
+              }}
+              className="text-zinc-500 transition hover:text-white"
+              type="button"
+            >
               <X size={20}/>
             </button>
           </div>

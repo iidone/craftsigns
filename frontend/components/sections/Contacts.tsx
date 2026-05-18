@@ -12,7 +12,28 @@ const contacts = [
 
 export const Contacts = () => {
   const [showMap, setShowMap] = useState(false);
+  const [form, setForm] = useState({ name: "", phone: "", email: "", description: "" });
+  const [status, setStatus] = useState("");
   const defaultCoords: [number, number] = [55.7558, 37.6173];
+
+  const submitTicket = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setStatus("");
+
+    const response = await fetch("/api/v1/dashboard/public-tickets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
+
+    if (response.ok) {
+      setForm({ name: "", phone: "", email: "", description: "" });
+      setStatus("Заявка отправлена. Мы скоро свяжемся с вами.");
+      return;
+    }
+
+    setStatus("Не удалось отправить заявку. Попробуйте позже.");
+  };
 
   return (
     <section id="contacts" className="app-shell py-4">
@@ -24,8 +45,7 @@ export const Contacts = () => {
               Обсудим вашу вывеску
             </h2>
             <p className="mt-3 max-w-xl text-sm leading-6 text-zinc-500">
-              Оставьте заявку или свяжитесь напрямую. Отправку формы я пока не
-              менял, чтобы не смешивать дизайн с будущей backend-задачей.
+              Оставьте заявку или свяжитесь напрямую. Менеджер увидит обращение в панели и ответит удобным способом.
             </p>
 
             <div className="mt-8 grid gap-3">
@@ -53,20 +73,34 @@ export const Contacts = () => {
 
           <div className="rounded-[26px] border border-white/10 bg-[#070707] p-4">
             <h3 className="text-xl font-semibold text-white">Оставить заявку</h3>
-            <form className="mt-5 grid gap-3">
+            <form className="mt-5 grid gap-3" onSubmit={submitTicket}>
               <input
                 type="text"
                 placeholder="Ваше имя"
+                required
+                value={form.name}
+                onChange={(event) => setForm((state) => ({ ...state, name: event.target.value }))}
                 className="h-12 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-white/30 focus:bg-white/[0.07]"
               />
               <input
                 type="tel"
                 placeholder="+7 (___) ___-__-__"
+                value={form.phone}
+                onChange={(event) => setForm((state) => ({ ...state, phone: event.target.value }))}
+                className="h-12 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-white/30 focus:bg-white/[0.07]"
+              />
+              <input
+                type="email"
+                placeholder="Email"
+                value={form.email}
+                onChange={(event) => setForm((state) => ({ ...state, email: event.target.value }))}
                 className="h-12 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-white/30 focus:bg-white/[0.07]"
               />
               <textarea
                 placeholder="Расскажите о проекте"
                 rows={5}
+                value={form.description}
+                onChange={(event) => setForm((state) => ({ ...state, description: event.target.value }))}
                 className="resize-none rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-white/30 focus:bg-white/[0.07]"
               />
               <button
@@ -76,6 +110,7 @@ export const Contacts = () => {
                 <Send size={17} />
                 Отправить заявку
               </button>
+              {status && <p className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-zinc-300">{status}</p>}
             </form>
           </div>
         </div>
