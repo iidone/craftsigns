@@ -56,6 +56,7 @@ async def authenticate_user(email: str, password: str, session: AsyncSession):
     return user
 
 
+
 async def get_user_by_email(email: str, session: AsyncSession):
     result = await session.execute(
         select(UsersModel).where(UsersModel.email == email)

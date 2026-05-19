@@ -131,7 +131,6 @@ async def create_my_ticket(
 
     body = (
         f"Клиент: {current_user.first_name} {current_user.last_name}\n"
-        f"Email аккаунта: {current_user.email}\n"
         f"Имя в заявке: {ticket.name}\n"
         f"Телефон: {ticket.phone or '-'}\n"
         f"Email: {ticket.email or '-'}\n"

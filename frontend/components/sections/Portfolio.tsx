@@ -56,8 +56,7 @@ export const Portfolio = () => {
                 Выполненные работы
               </h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-500">
-                Реальные позиции из административной части. Карточку можно открыть,
-                чтобы рассмотреть изображение крупнее.
+                Посмотрите наше портфолио и убедитесь сами, что наши работы выполнены качественно.
               </p>
             </div>
             <span className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-zinc-400">

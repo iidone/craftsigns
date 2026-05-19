@@ -11,12 +11,10 @@ class UsersModel(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(index=True)
 
-    # Активность пользователя: при регистрации False, после подтверждения email True
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
 
-    # Токен подтверждения email (однократный)
     email_verify_token: Mapped[Optional[str]] = mapped_column(String(512), nullable=True, index=True)
-    email_verify_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    email_verify_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     role: Mapped[str] = mapped_column(default="common", index=True)
     date_of_reg: Mapped[date] = mapped_column(Date, default=date.today)

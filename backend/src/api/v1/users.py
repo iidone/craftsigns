@@ -40,17 +40,14 @@ async def get_all_users(session: SessionDep):
         return users
     except Exception as e:
         raise HTTPException(status_code=500, detail=f'Error of get all users: {str(e)}')
-    
+
 
 @router.post("/users", response_model=UserResponse, tags=['Пользователи'], summary=['Регистрация'])
 async def register_user(session: SessionDep, user_data: CreateUser):
     try:
         existing_user = await check_email_exists(user_data.email, session)
         if existing_user:
-            raise HTTPException(
-                status_code=400,
-                detail="Пользователь с таким email уже существует"
-            )
+            raise HTTPException(status_code=400, detail="Пользователь с таким email уже существует")
 
         from src.utils.email_verification import generate_email_verify_token, default_expiry
         from src.services.EmailService import send_email
@@ -79,27 +76,24 @@ async def register_user(session: SessionDep, user_data: CreateUser):
         base_url = os.getenv("EMAIL_VERIFY_BASE_URL") or "http://localhost:8000"
         verify_url = f"{base_url}/v1/users/verify-email?token={token}"
 
-        send_email(
+        ok = send_email(
             "Подтвердите email",
             f"Здравствуйте, {user.first_name}!\n\n"
             f"Для активации аккаунта перейдите по ссылке:\n{verify_url}\n\n"
             f"Если вы не создавали аккаунт, просто проигнорируйте письмо.",
             recipients=[user.email],
         )
+        if not ok:
+            logging.warning("Email not sent to %s", user.email)
 
         return user
-    
+
     except HTTPException:
         raise
     except Exception as e:
         await session.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f'Register error: {str(e)}'
-        )
-    
+        raise HTTPException(status_code=500, detail=f'Register error: {str(e)}')
 
-    
 
 @router.get("/verify-email", tags=["Пользователи"], summary="Подтверждение email")
 async def verify_email(token: str, session: SessionDep):
@@ -118,6 +112,7 @@ async def verify_email(token: str, session: SessionDep):
         user.email_verify_expires_at = None
         await session.commit()
         return {"message": "Email успешно подтвержден"}
+
     except HTTPException:
         raise
     except Exception as e:
@@ -130,7 +125,6 @@ async def login_user(
     session: SessionDep,
     form_data: OAuth2PasswordRequestForm = Depends()
 ):
-
     try:
         user = await authenticate_user(form_data.username, form_data.password, session)
         if not user:
@@ -140,12 +134,8 @@ async def login_user(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        if not getattr(user, "is_active", True):
-            raise HTTPException(
-                status_code=403,
-                detail="Аккаунт не активирован. Проверьте почту.",
-            )
-
+        if not getattr(user, "is_active", False):
+            raise HTTPException(status_code=403, detail="Ваш email не подтвержден")
 
         access_token = create_access_token(data={"sub": user.email})
 
@@ -164,13 +154,10 @@ async def login_user(
                 "date_of_reg": user.date_of_reg.isoformat() if user.date_of_reg else None
             }
         }
+
     except HTTPException:
         raise
     except Exception as e:
         print(f"Login error: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail="Ошибка авторизации"
-        )
-    
+        raise HTTPException(status_code=500, detail="Ошибка авторизации")
 

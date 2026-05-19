@@ -96,6 +96,15 @@ export default function DashboardPage() {
     setTicketForm((s) => ({ ...s, name: fullName }));
   }, [fullName]);
 
+  // используем только значения, чтобы заблокировать инпуты и автозаполнять форму
+  const phoneFromContacts = useMemo(() => contacts.find((c) => c.type === "phone")?.value ?? "", [contacts]);
+  const emailFromContacts = useMemo(() => contacts.find((c) => c.type === "Email")?.value ?? "", [contacts]);
+
+  const isPhoneLocked = useMemo(() => Boolean(phoneFromContacts), [phoneFromContacts]);
+  const isEmailLocked = useMemo(() => Boolean(emailFromContacts), [emailFromContacts]);
+
+
+
   const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
   const showMessage = (text: string, type: "success" | "error" = "success") => {
@@ -106,15 +115,31 @@ export default function DashboardPage() {
 
   const loadData = useCallback(async () => {
     if (!token) return;
+
     const [ordersResponse, ticketsResponse, contactsResponse] = await Promise.all([
       fetch("/api/v1/dashboard/orders", { headers }),
       fetch("/api/v1/dashboard/tickets", { headers }),
       fetch("/api/v1/dashboard/contact-methods", { headers }),
     ]);
+
     if (ordersResponse.ok) setOrders(await ordersResponse.json());
     if (ticketsResponse.ok) setTickets(await ticketsResponse.json());
-    if (contactsResponse.ok) setContacts(await contactsResponse.json());
+
+    if (contactsResponse.ok) {
+      const nextContacts = (await contactsResponse.json()) as ContactMethod[];
+      setContacts(nextContacts);
+
+      const phoneContact = nextContacts.find((c) => c.type === "phone");
+      const emailContact = nextContacts.find((c) => c.type === "Email");
+
+      setTicketForm((prev) => ({
+        ...prev,
+        phone: phoneContact?.value ?? prev.phone,
+        email: emailContact?.value ?? prev.email,
+      }));
+    }
   }, [headers, token]);
+
 
   useEffect(() => {
     if (!user) {
@@ -139,10 +164,16 @@ export default function DashboardPage() {
       body: JSON.stringify(ticketForm),
     });
     if (response.ok) {
-      setTicketForm({ name: fullName, phone: "", email: "", description: "" });
+      setTicketForm((prev) => ({
+        name: fullName,
+        phone: isPhoneLocked ? prev.phone : "",
+        email: isEmailLocked ? prev.email : "",
+        description: "",
+      }));
       showMessage("✅ Заявка отправлена");
       await loadData();
     } else {
+
       showMessage("❌ Не удалось отправить заявку", "error");
     }
   };
@@ -277,8 +308,22 @@ export default function DashboardPage() {
                   readOnly
                 />
               </label>
-              <Field label="Телефон" value={ticketForm.phone} onChange={(value) => setTicketForm((state) => ({ ...state, phone: value }))} />
-              <Field label="Email" type="email" value={ticketForm.email} onChange={(value) => setTicketForm((state) => ({ ...state, email: value }))} />
+              <Field
+                label="Телефон"
+                value={ticketForm.phone}
+                onChange={(value) => setTicketForm((state) => ({ ...state, phone: value }))}
+                disabled={isPhoneLocked}
+                readOnly={isPhoneLocked}
+              />
+              <Field
+                label="Email"
+                type="email"
+                value={ticketForm.email}
+                onChange={(value) => setTicketForm((state) => ({ ...state, email: value }))}
+                disabled={isEmailLocked}
+                readOnly={isEmailLocked}
+              />
+
               <Textarea label="Описание" value={ticketForm.description} onChange={(value) => setTicketForm((state) => ({ ...state, description: value }))} />
               <PrimaryButton text="Отправить заявку" />
             </form>
@@ -412,20 +457,42 @@ function Panel({ children, icon, title }: { children: React.ReactNode; icon: Rea
   );
 }
 
-function Field({ label, onChange, required, type = "text", value }: { label: string; onChange: (value: string) => void; required?: boolean; type?: string; value: string }) {
+function Field({
+  label,
+  onChange,
+  required,
+  type = "text",
+  value,
+  disabled = false,
+  readOnly = false,
+}: {
+  label: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+  type?: string;
+  value: string;
+  disabled?: boolean;
+  readOnly?: boolean;
+}) {
   return (
     <label className="grid gap-2 text-sm text-zinc-300">
       <span>{label}</span>
-      <input 
-        className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm outline-none focus:border-white/30 transition" 
-        onChange={(event) => onChange(event.target.value)} 
-        required={required} 
-        type={type} 
-        value={value} 
+      <input
+        className={
+          "h-11 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm outline-none focus:border-white/30 transition" +
+          (disabled || readOnly ? " cursor-not-allowed text-zinc-400" : " text-zinc-400")
+        }
+        onChange={(event) => onChange(event.target.value)}
+        required={required}
+        type={type}
+        value={value}
+        disabled={disabled}
+        readOnly={readOnly}
       />
     </label>
   );
 }
+
 
 function Textarea({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
   return (

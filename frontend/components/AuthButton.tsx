@@ -79,15 +79,26 @@ export const AuthButton = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || "Ошибка регистрации");
+        const detail = errorData?.detail;
+
+        if (typeof detail === "string") {
+          throw new Error(detail);
+        }
+        if (Array.isArray(detail) && detail.length > 0) {
+          const msg = detail[0]?.msg;
+          throw new Error(msg || "Ошибка регистрации");
+        }
+
+        throw new Error(errorData?.message || errorData?.detail || "Ошибка регистрации");
       }
 
-      setSuccessMessage("Аккаунт создан. Теперь можно войти.");
+      setSuccessMessage("Аккаунт создан. Пожалуйста, подтвердите email по ссылке из письма.");
       setModalMode("login");
       setEmail(regEmail);
       setPassword(regPassword);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка регистрации");
+      const msg = err instanceof Error ? err.message : "Ошибка регистрации";
+      setError(typeof msg === "string" && msg.toLowerCase().includes("object") ? "Проверьте данные формы" : msg);
     } finally {
       setLoading(false);
     }
@@ -165,90 +176,91 @@ export const AuthButton = () => {
           onClick={handleClose}
         >
           <div
-          className={`w-full max-w-[420px] my-auto rounded-[26px] border border-white/10 bg-[#0b0b0c] shadow-[0_20px_70px_rgba(0,0,0,0.35)] transition-all duration-300 will-change-transform ${
-            isModalOpen ? "scale-100 opacity-100" : "scale-95 opacity-0"
-          }`}
-          style={{
-            opacity: isClosing ? 0 : 1,
-            transform: isClosing ? "scale(0.98) translateY(10px)" : "scale(1) translateY(0)",
-          }}
-          onClick={(event) => event.stopPropagation()}
-        >
-          <div className="flex items-center justify-between border-b border-white/10 p-4">
-            <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white/[0.03] p-1">
-              <button
-                className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${
-                  modalMode === "login" ? "bg-white text-black" : "text-zinc-400 hover:bg-white/[0.04]"
-                }`}
-                onClick={() => setModalMode("login")}
-                type="button"
-              >
-                Вход
-              </button>
-              <button
-                className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${
-                  modalMode === "register" ? "bg-white text-black" : "text-zinc-400 hover:bg-white/[0.04]"
-                }`}
-                onClick={() => setModalMode("register")}
-                type="button"
-              >
-                Регистрация
+            className={`w-full max-w-[420px] my-auto rounded-[26px] border border-white/10 bg-[#0b0b0c] shadow-[0_20px_70px_rgba(0,0,0,0.35)] transition-all duration-300 will-change-transform ${
+              isModalOpen ? "scale-100 opacity-100" : "scale-95 opacity-0"
+            }`}
+            style={{
+              opacity: isClosing ? 0 : 1,
+              transform: isClosing ? "scale(0.98) translateY(10px)" : "scale(1) translateY(0)",
+            }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 p-4">
+              <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white/[0.03] p-1">
+                <button
+                  className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${
+                    modalMode === "login" ? "bg-white text-black" : "text-zinc-400 hover:bg-white/[0.04]"
+                  }`}
+                  onClick={() => setModalMode("login")}
+                  type="button"
+                >
+                  Вход
+                </button>
+                <button
+                  className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${
+                    modalMode === "register" ? "bg-white text-black" : "text-zinc-400 hover:bg-white/[0.04]"
+                  }`}
+                  onClick={() => setModalMode("register")}
+                  type="button"
+                >
+                  Регистрация
+                </button>
+              </div>
+              <button className="text-zinc-500 transition hover:text-white" onClick={handleClose} type="button">
+                <X size={20} />
               </button>
             </div>
-            <button className="text-zinc-500 transition hover:text-white" onClick={handleClose} type="button">
-              <X size={20} />
-            </button>
-          </div>
 
-          <div className="p-5">
-            <div className="transition-opacity duration-200">
-              {modalMode === "login" ? (
-                <form className="grid gap-3" onSubmit={handleLogin}>
-                  <ModalTitle
-                  title="Вход в аккаунт"
-                  text="Введите email и пароль."
-                />
-                <AuthField label="Email" type="email" value={email} onChange={setEmail} />
-                <AuthField label="Пароль" type="password" value={password} onChange={setPassword} />
-                <Feedback error={error} success={successMessage} />
-                <button
-                  className="h-11 rounded-2xl bg-white px-4 text-sm font-medium text-black transition hover:bg-zinc-200 disabled:opacity-50"
-                  disabled={loading}
-                >
-                  {loading ? "Вход..." : "Войти"}
-                </button>
-              </form>
-            ) : (
-              <form className="grid gap-3" onSubmit={handleRegister}>
-                <ModalTitle
-                  title="Регистрация"
-                  text="Создайте аккаунт для получения доступа к чат-боту и оформления заказов."
-                />
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <AuthField label="Имя" value={regFirstName} onChange={setRegFirstName} />
-                  <AuthField label="Фамилия" value={regLastName} onChange={setRegLastName} />
-                </div>
-                <AuthField
-                  label="Отчество"
-                  value={regPatronymic}
-                  onChange={setRegPatronymic}
-                  required={false}
-                />
-                <AuthField label="Email" type="email" value={regEmail} onChange={setRegEmail} />
-                <AuthField label="Пароль" type="password" value={regPassword} onChange={setRegPassword} />
-                <Feedback error={error} success={successMessage} />
-                <button
-                  className="h-11 rounded-2xl bg-white px-4 text-sm font-medium text-black transition hover:bg-zinc-200 disabled:opacity-50"
-                  disabled={loading}
-                >
-                  {loading ? "Создание..." : "Зарегистрироваться"}
-                </button>
-              </form>
-            )}
+            <div className="p-5">
+              <div className="transition-opacity duration-200">
+                {modalMode === "login" ? (
+                  <form className="grid gap-3" onSubmit={handleLogin}>
+                    <ModalTitle
+                      title="Вход в аккаунт"
+                      text="Введите email и пароль."
+                    />
+                    <AuthField label="Email" type="email" value={email} onChange={setEmail} />
+                    <AuthField label="Пароль" type="password" value={password} onChange={setPassword} />
+                    <Feedback error={error} success={successMessage} />
+                    <button
+                      className="h-11 rounded-2xl bg-white px-4 text-sm font-medium text-black transition hover:bg-zinc-200 disabled:opacity-50"
+                      disabled={loading}
+                    >
+                      {loading ? "Вход..." : "Войти"}
+                    </button>
+                  </form>
+                ) : (
+                  <form className="grid gap-3" onSubmit={handleRegister}>
+                    <ModalTitle
+                      title="Регистрация"
+                      text="Создайте аккаунт для получения доступа к чат-боту и оформления заказов."
+                    />
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <AuthField label="Имя" value={regFirstName} onChange={setRegFirstName} />
+                      <AuthField label="Фамилия" value={regLastName} onChange={setRegLastName} />
+                    </div>
+                    <AuthField
+                      label="Отчество"
+                      value={regPatronymic}
+                      onChange={setRegPatronymic}
+                      required={false}
+                    />
+                    <AuthField label="Email" type="email" value={regEmail} onChange={setRegEmail} />
+                    <AuthField label="Пароль" type="password" value={regPassword} onChange={setRegPassword} />
+                    <Feedback error={error} success={successMessage} />
+                    <button
+                      className="h-11 rounded-2xl bg-white px-4 text-sm font-medium text-black transition hover:bg-zinc-200 disabled:opacity-50"
+                      disabled={loading}
+                    >
+                      {loading ? "Создание..." : "Зарегистрироваться"}
+                    </button>
+                  </form>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </>
   );
 };
@@ -300,4 +312,3 @@ const Feedback = ({ error, success }: { error: string; success: string }) => {
     </p>
   );
 };
-
