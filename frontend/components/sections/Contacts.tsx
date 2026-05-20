@@ -1,38 +1,114 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Map, Placemark, YMaps } from "@pbe/react-yandex-maps";
 import { Mail, MapPin, Phone, Send } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { formatPhone, getFriendlyError } from "@/utils/forms";
+
+interface ContactMethod {
+  id: number;
+  type: string;
+  value: string;
+  comment: string | null;
+  created_at: string;
+  is_locked?: boolean;
+  is_virtual?: boolean;
+}
 
 const contacts = [
   { icon: Phone, title: "Телефон", value: "+7 (900) 123-45-67", href: "tel:+79001234567" },
-  { icon: Mail, title: "Email", value: "info@craftsigns.ru", href: "mailto:info@craftsigns.ru" },
-  { icon: MapPin, title: "Адрес", value: "г. Москва, ул. Пушкина, д. 1" },
+  { icon: Mail, title: "Email", value: "craftsigns@yandex.ru", href: "mailto:craftsigns@yandex.ru" },
+  { icon: MapPin, title: "Адрес", value: "г. Москва, ул. Остаповский пр-д, д. 13" },
 ];
 
 export const Contacts = () => {
+  const { token, user } = useAuth();
   const [showMap, setShowMap] = useState(false);
   const [form, setForm] = useState({ name: "", phone: "", email: "", description: "" });
+  const [lockedContacts, setLockedContacts] = useState({ phone: false, email: false });
   const [status, setStatus] = useState("");
   const defaultCoords: [number, number] = [55.7558, 37.6173];
+  const fullName = `${user?.first_name ?? ""} ${user?.last_name ?? ""} ${user?.patronymic ?? ""}`.trim();
+
+  const isAuthorized = Boolean(token && user);
+  const isNameLocked = Boolean(fullName);
+  const isPhoneLocked = useMemo(() => Boolean(lockedContacts.phone && form.phone), [form.phone, lockedContacts.phone]);
+  const isEmailLocked = useMemo(() => Boolean(lockedContacts.email && form.email), [form.email, lockedContacts.email]);
+
+  useEffect(() => {
+    if (!isAuthorized) return;
+
+    const controller = new AbortController();
+
+    const loadContactDefaults = async () => {
+      const response = await fetch("/api/v1/dashboard/contact-methods", {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
+      });
+
+      if (!response.ok) return;
+
+      const contacts = (await response.json()) as ContactMethod[];
+      const phone = contacts.find((contact) => contact.type === "phone")?.value ?? "";
+      const email = contacts.find((contact) => contact.type === "Email")?.value ?? user?.email ?? "";
+
+      const timer = window.setTimeout(() => {
+        setLockedContacts({ phone: Boolean(phone), email: Boolean(email) });
+        setForm((state) => ({
+          ...state,
+          name: fullName || state.name,
+          phone: phone || state.phone,
+          email: email || state.email,
+        }));
+      }, 0);
+
+      return () => window.clearTimeout(timer);
+    };
+
+    void loadContactDefaults();
+
+    return () => controller.abort();
+  }, [fullName, isAuthorized, token, user?.email]);
+
+  useEffect(() => {
+    if (!fullName) return;
+    const timer = window.setTimeout(() => {
+      setForm((state) => ({ ...state, name: fullName }));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [fullName]);
 
   const submitTicket = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setStatus("");
 
-    const response = await fetch("/api/v1/dashboard/public-tickets", {
+    const response = await fetch(isAuthorized ? "/api/v1/dashboard/tickets" : "/api/v1/dashboard/public-tickets", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify(form),
     });
 
     if (response.ok) {
-      setForm({ name: "", phone: "", email: "", description: "" });
+      setForm((state) => ({
+        name: isNameLocked ? fullName : "",
+        phone: isPhoneLocked ? state.phone : "",
+        email: isEmailLocked ? state.email : "",
+        description: "",
+      }));
       setStatus("Заявка отправлена. Мы скоро свяжемся с вами.");
       return;
     }
 
-    setStatus("Не удалось отправить заявку. Попробуйте позже.");
+    try {
+      const data = await response.json();
+      setStatus(getFriendlyError(data, "Не удалось отправить заявку. Попробуйте позже."));
+    } catch {
+      setStatus("Не удалось отправить заявку. Попробуйте позже.");
+    }
   };
 
   return (
@@ -80,21 +156,27 @@ export const Contacts = () => {
                 required
                 value={form.name}
                 onChange={(event) => setForm((state) => ({ ...state, name: event.target.value }))}
-                className="h-12 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-white/30 focus:bg-white/[0.07]"
+                disabled={isNameLocked}
+                readOnly={isNameLocked}
+                className="h-12 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-white/30 focus:bg-white/[0.07] disabled:cursor-not-allowed disabled:text-zinc-400"
               />
               <input
                 type="tel"
                 placeholder="+7 (___) ___-__-__"
                 value={form.phone}
-                onChange={(event) => setForm((state) => ({ ...state, phone: event.target.value }))}
-                className="h-12 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-white/30 focus:bg-white/[0.07]"
+                onChange={(event) => setForm((state) => ({ ...state, phone: formatPhone(event.target.value) }))}
+                disabled={isPhoneLocked}
+                readOnly={isPhoneLocked}
+                className="h-12 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-white/30 focus:bg-white/[0.07] disabled:cursor-not-allowed disabled:text-zinc-400"
               />
               <input
                 type="email"
                 placeholder="Email"
                 value={form.email}
                 onChange={(event) => setForm((state) => ({ ...state, email: event.target.value }))}
-                className="h-12 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-white/30 focus:bg-white/[0.07]"
+                disabled={isEmailLocked}
+                readOnly={isEmailLocked}
+                className="h-12 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-white/30 focus:bg-white/[0.07] disabled:cursor-not-allowed disabled:text-zinc-400"
               />
               <textarea
                 placeholder="Расскажите о проекте"

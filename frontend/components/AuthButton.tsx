@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { LogIn, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { getFriendlyError } from "@/utils/forms";
 
 type ModalMode = "login" | "register";
 
@@ -45,14 +46,14 @@ export const AuthButton = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || "Ошибка авторизации");
+        throw new Error(getFriendlyError(errorData, "Не удалось войти. Проверьте email и пароль."));
       }
 
       const data = await response.json();
       login(data.access_token, data.user_info);
       handleClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка авторизации");
+      setError(err instanceof Error ? err.message : "Не удалось войти. Проверьте email и пароль.");
     } finally {
       setLoading(false);
     }
@@ -79,17 +80,7 @@ export const AuthButton = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        const detail = errorData?.detail;
-
-        if (typeof detail === "string") {
-          throw new Error(detail);
-        }
-        if (Array.isArray(detail) && detail.length > 0) {
-          const msg = detail[0]?.msg;
-          throw new Error(msg || "Ошибка регистрации");
-        }
-
-        throw new Error(errorData?.message || errorData?.detail || "Ошибка регистрации");
+        throw new Error(getFriendlyError(errorData, "Не удалось зарегистрироваться. Проверьте данные формы."));
       }
 
       setSuccessMessage("Аккаунт создан. Пожалуйста, подтвердите email по ссылке из письма.");
@@ -97,8 +88,8 @@ export const AuthButton = () => {
       setEmail(regEmail);
       setPassword(regPassword);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Ошибка регистрации";
-      setError(typeof msg === "string" && msg.toLowerCase().includes("object") ? "Проверьте данные формы" : msg);
+      const msg = err instanceof Error ? err.message : "Не удалось зарегистрироваться. Проверьте данные формы.";
+      setError(getFriendlyError(msg, "Не удалось зарегистрироваться. Проверьте данные формы."));
     } finally {
       setLoading(false);
     }
@@ -119,10 +110,13 @@ export const AuthButton = () => {
   const [isClosing, setIsClosing] = useState(false);
 
   const handleClose = () => {
-    // Снимаем overlay сразу, чтобы он не перекрывал клики во время анимации
-    setIsModalOpen(false);
-    setIsClosing(false);
-    resetForm();
+    if (isClosing) return;
+    setIsClosing(true);
+    window.setTimeout(() => {
+      setIsModalOpen(false);
+      setIsClosing(false);
+      resetForm();
+    }, 220);
   };
 
   // Prevent hydration mismatch.
@@ -161,7 +155,10 @@ export const AuthButton = () => {
   return (
     <>
       <button
-        onClick={() => setIsModalOpen(true)}
+        onClick={() => {
+          setIsClosing(false);
+          setIsModalOpen(true);
+        }}
         className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-zinc-200"
         type="button"
       >
@@ -177,7 +174,7 @@ export const AuthButton = () => {
         >
           <div
             className={`w-full max-w-[420px] my-auto rounded-[26px] border border-white/10 bg-[#0b0b0c] shadow-[0_20px_70px_rgba(0,0,0,0.35)] transition-all duration-300 will-change-transform ${
-              isModalOpen ? "scale-100 opacity-100" : "scale-95 opacity-0"
+              isModalOpen && !isClosing ? "scale-100 opacity-100" : "scale-95 opacity-0"
             }`}
             style={{
               opacity: isClosing ? 0 : 1,

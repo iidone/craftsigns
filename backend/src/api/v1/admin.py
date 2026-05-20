@@ -7,6 +7,7 @@ from src.models.users import UsersModel
 from src.models.bot_config import BotConfig
 from src.models.orders import OrdersModel
 from src.models.tickets import TicketsModel
+from src.models.telegram_recipients import TelegramRecipientModel
 from src.database.deps import SessionDep
 from src.services.AuthService import get_current_user
 from src.services.EmailService import send_email
@@ -15,6 +16,7 @@ from src.schemas.bot_config import BotConfigResponse
 from src.schemas.orders import OrderCreate, OrderUpdate, OrdersResponse
 from src.models.contact_methods import ContactMethodModel
 from src.schemas.contact_methods import ContactMethodResponse
+from src.schemas.telegram_recipients import TelegramRecipientCreate, TelegramRecipientResponse
 
 from src.schemas.tickets import TicketsResponse, TicketUpdate
 from pydantic import BaseModel
@@ -310,6 +312,57 @@ async def get_tickets_admin(session: SessionDep, current_user: UsersModel = Depe
     return result.scalars().all()
 
 
+@router.get("/telegram-recipients", response_model=List[TelegramRecipientResponse])
+async def get_telegram_recipients_admin(
+    session: SessionDep,
+    current_user: UsersModel = Depends(get_current_user),
+):
+    ensure_admin(current_user)
+    result = await session.execute(
+        select(TelegramRecipientModel).order_by(TelegramRecipientModel.created_at.desc())
+    )
+    return result.scalars().all()
+
+
+@router.post("/telegram-recipients", response_model=TelegramRecipientResponse)
+async def create_telegram_recipient_admin(
+    recipient_data: TelegramRecipientCreate,
+    session: SessionDep,
+    current_user: UsersModel = Depends(get_current_user),
+):
+    ensure_admin(current_user)
+    exists = await session.execute(
+        select(TelegramRecipientModel).where(
+            TelegramRecipientModel.telegram_user_id == recipient_data.telegram_user_id
+        )
+    )
+    existing = exists.scalar_one_or_none()
+    if existing:
+        return existing
+
+    recipient = TelegramRecipientModel(telegram_user_id=recipient_data.telegram_user_id)
+    session.add(recipient)
+    await session.commit()
+    await session.refresh(recipient)
+    return recipient
+
+
+@router.delete("/telegram-recipients/{recipient_id}")
+async def delete_telegram_recipient_admin(
+    recipient_id: int,
+    session: SessionDep,
+    current_user: UsersModel = Depends(get_current_user),
+):
+    ensure_admin(current_user)
+    recipient = await session.get(TelegramRecipientModel, recipient_id)
+    if not recipient:
+        raise HTTPException(status_code=404, detail="Получатель не найден")
+
+    await session.delete(recipient)
+    await session.commit()
+    return {"message": "Получатель удалён"}
+
+
 @router.patch("/tickets/{ticket_id}", response_model=TicketsResponse)
 async def update_ticket_admin(
     ticket_id: int,
@@ -352,4 +405,3 @@ async def close_ticket_admin(
     await session.commit()
     await session.refresh(ticket)
     return ticket
-

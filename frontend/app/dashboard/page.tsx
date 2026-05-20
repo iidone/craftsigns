@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { CheckCircle2, MessageSquarePlus, Phone, Plus, Trash2, UserRound, X } from "lucide-react";
+import { formatPhone, getFriendlyError } from "@/utils/forms";
 
 interface Order {
   id: number;
@@ -93,7 +94,10 @@ export default function DashboardPage() {
   const [contactForm, setContactForm] = useState({ type: "phone", value: "", comment: "" });
 
   useEffect(() => {
-    setTicketForm((s) => ({ ...s, name: fullName }));
+    const timer = window.setTimeout(() => {
+      setTicketForm((s) => ({ ...s, name: fullName }));
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [fullName]);
 
   // используем только значения, чтобы заблокировать инпуты и автозаполнять форму
@@ -195,7 +199,7 @@ export default function DashboardPage() {
 
     try {
       const data = await response.json();
-      showMessage(`❌ ${data?.detail ?? "Не удалось добавить способ связи"}`, "error");
+      showMessage(`❌ ${getFriendlyError(data, "Не удалось добавить способ связи")}`, "error");
     } catch {
       showMessage("❌ Не удалось добавить способ связи", "error");
     }
@@ -233,12 +237,11 @@ export default function DashboardPage() {
     } else {
       try {
         const data = await response.json();
-        showMessage(`❌ ${data?.detail ?? "Не удалось удалить"}`, "error");
+        showMessage(`❌ ${getFriendlyError(data, "Не удалось удалить способ связи")}`, "error");
       } catch {
         showMessage("❌ Не удалось удалить способ связи", "error");
       }
     }
-    closeDeleteModal();
   };
 
   const existingTypes = contacts
@@ -310,8 +313,9 @@ export default function DashboardPage() {
               </label>
               <Field
                 label="Телефон"
+                type="tel"
                 value={ticketForm.phone}
-                onChange={(value) => setTicketForm((state) => ({ ...state, phone: value }))}
+                onChange={(value) => setTicketForm((state) => ({ ...state, phone: formatPhone(value) }))}
                 disabled={isPhoneLocked}
                 readOnly={isPhoneLocked}
               />
@@ -369,7 +373,18 @@ export default function DashboardPage() {
                   )}
                 </select>
               </label>
-              <Field label="Значение" required value={contactForm.value} onChange={(value) => setContactForm((state) => ({ ...state, value }))} />
+              <Field
+                label="Значение"
+                required
+                type={contactForm.type === "phone" || contactForm.type === "whatsapp" ? "tel" : "text"}
+                value={contactForm.value}
+                onChange={(value) =>
+                  setContactForm((state) => ({
+                    ...state,
+                    value: state.type === "phone" || state.type === "whatsapp" ? formatPhone(value) : value,
+                  }))
+                }
+              />
               <Field label="Комментарий" value={contactForm.comment} onChange={(value) => setContactForm((state) => ({ ...state, comment: value }))} />
               <PrimaryButton text="Добавить" disabled={availableTypes.length === 0} />
             </form>
@@ -410,11 +425,12 @@ export default function DashboardPage() {
 
       {deleteModal.isOpen && (
         <ModalMount onRequestClose={closeDeleteModal}>
+          {(close) => (
           <div className="w-full max-w-md rounded-[26px] border border-white/10 bg-[#0b0b0c] p-6 shadow-[0_20px_70px_rgba(0,0,0,0.35)]" role="dialog" aria-modal="true">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-semibold text-white">Подтверждение удаления</h3>
               <button
-                onClick={closeDeleteModal}
+                onClick={close}
                 className="text-zinc-500 transition hover:text-white"
                 type="button"
               >
@@ -427,14 +443,17 @@ export default function DashboardPage() {
             </p>
             <div className="flex gap-3">
               <button
-                onClick={confirmDelete}
+                onClick={async () => {
+                  await confirmDelete();
+                  close();
+                }}
                 className="flex-1 rounded-2xl bg-red-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-600"
                 type="button"
               >
                 Удалить
               </button>
               <button
-                onClick={closeDeleteModal}
+                onClick={close}
                 className="flex-1 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-medium text-zinc-300 transition hover:bg-white/[0.08]"
                 type="button"
               >
@@ -442,6 +461,7 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
+          )}
         </ModalMount>
       )}
     </main>
@@ -541,22 +561,29 @@ function formatDate(value: string | null) {
 }
 
 function formatDateTime(value: string) {
-  const d = new Date(value);
+  const d = parseServerDateTime(value);
   if (Number.isNaN(d.getTime())) return "-";
 
-  const yyyy = d.getUTCFullYear();
-  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const dd = String(d.getUTCDate()).padStart(2, "0");
-  const hh = String(d.getUTCHours()).padStart(2, "0");
-  const min = String(d.getUTCMinutes()).padStart(2, "0");
-  return `${dd}.${mm}.${yyyy} ${hh}:${min}`;
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Moscow",
+  }).format(d);
+}
+
+function parseServerDateTime(value: string) {
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(value);
+  return new Date(hasTimezone ? value : `${value}Z`);
 }
 
 function ModalMount({
   children,
   onRequestClose,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode | ((close: () => void) => React.ReactNode);
   onRequestClose: () => void;
 }) {
   const [isClosing, setIsClosing] = useState(false);
@@ -571,7 +598,7 @@ function ModalMount({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md transition-opacity duration-220"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md transition-opacity duration-300"
       style={{ opacity: isClosing ? 0 : 1 }}
       role="presentation"
       onMouseDown={(e) => {
@@ -579,14 +606,14 @@ function ModalMount({
       }}
     >
       <div
-        className="transition-all duration-220"
+        className="transition-all duration-300"
         style={{
           opacity: isClosing ? 0 : 1,
           transform: isClosing ? "translateY(10px) scale(0.98)" : "translateY(0) scale(1)",
         }}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        {children}
+        {typeof children === "function" ? children(close) : children}
       </div>
     </div>
   );

@@ -11,12 +11,12 @@ import {
   ImagePlus,
   MessageSquare,
   Package,
+  Pencil,
   Plus,
   Save,
   Settings,
   Trash2,
   Users,
-  Volume2,
 } from "lucide-react";
 
 interface User {
@@ -64,6 +64,12 @@ interface Ticket {
   closed_at: string | null;
 }
 
+interface TelegramRecipient {
+  id: number;
+  telegram_user_id: number;
+  created_at: string;
+}
+
 interface BotBlock {
   type: string;
   content: string;
@@ -106,6 +112,7 @@ export default function AdminPanel() {
   const [users, setUsers] = useState<User[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [telegramRecipients, setTelegramRecipients] = useState<TelegramRecipient[]>([]);
   const [userContactsByUserId, setUserContactsByUserId] = useState<Record<number, ContactMethod[]>>({});
   const [services, setServices] = useState<ContentItem[]>([]);
 
@@ -134,6 +141,15 @@ export default function AdminPanel() {
   });
 
   const [botForm, setBotForm] = useState({ type: "", content: "" });
+  const [botEditingIndex, setBotEditingIndex] = useState<number | null>(null);
+  const [telegramForm, setTelegramForm] = useState("");
+  const [confirmAction, setConfirmAction] = useState<{
+    isOpen: boolean;
+    title: string;
+    text: string;
+    confirmText: string;
+    onConfirm: (() => Promise<void>) | null;
+  }>({ isOpen: false, title: "", text: "", confirmText: "Удалить", onConfirm: null });
 
   const authHeaders = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
@@ -171,8 +187,9 @@ export default function AdminPanel() {
       ];
 
       if (isAdmin) requests.push(fetch("/api/v1/admin/users", { headers: authHeaders }));
+      if (isAdmin) requests.push(fetch("/api/v1/admin/telegram-recipients", { headers: authHeaders }));
 
-      const [ordersResponse, ticketsResponse, servicesResponse, portfolioResponse, botResponse, usersResponse] = await Promise.all(requests);
+      const [ordersResponse, ticketsResponse, servicesResponse, portfolioResponse, botResponse, usersResponse, telegramResponse] = await Promise.all(requests);
 
       if (!ordersResponse.ok || !ticketsResponse.ok || !servicesResponse.ok || !portfolioResponse.ok || !botResponse.ok) {
         throw new Error("Не удалось загрузить данные панели");
@@ -210,6 +227,10 @@ export default function AdminPanel() {
 
       if (isAdmin && usersResponse?.ok) {
         setUsers(await usersResponse.json());
+      }
+
+      if (isAdmin && telegramResponse?.ok) {
+        setTelegramRecipients(await telegramResponse.json());
       }
     } catch (error) {
       notify(error instanceof Error ? error.message : "Ошибка загрузки");
@@ -272,6 +293,38 @@ export default function AdminPanel() {
     }
   };
 
+  const addTelegramRecipient = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const telegramId = Number(telegramForm.trim());
+    if (!telegramForm.trim() || !Number.isFinite(telegramId)) {
+      notify("Введите числовой Telegram ID");
+      return;
+    }
+
+    const response = await fetch("/api/v1/admin/telegram-recipients", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders },
+      body: JSON.stringify({ telegram_user_id: telegramId }),
+    });
+
+    if (!response.ok) {
+      notify("Не удалось добавить получателя");
+      return;
+    }
+
+    setTelegramForm("");
+    notify("Получатель Telegram добавлен");
+    await loadData();
+  };
+
+  const deleteTelegramRecipient = async (id: number) => {
+    const response = await fetch(`/api/v1/admin/telegram-recipients/${id}`, { method: "DELETE", headers: authHeaders });
+    if (response.ok) {
+      notify("Получатель Telegram удалён");
+      await loadData();
+    }
+  };
+
   const updateRole = async (userId: number, role: string) => {
     const response = await fetch(`/api/v1/admin/users/${userId}/role`, {
       method: "PATCH",
@@ -281,17 +334,60 @@ export default function AdminPanel() {
     if (response.ok) await loadData();
   };
 
-  const saveBotConfig = async () => {
-    const nextBlocks = botForm.type.trim() ? [...blocks, { type: botForm.type, content: botForm.content }] : blocks;
+  const persistBotBlocks = async (nextBlocks: BotBlock[], successText = "Настройки бота сохранены") => {
     const response = await fetch("/api/v1/admin/bot-config", {
       method: "PUT",
       headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({ blocks: nextBlocks }),
     });
     if (response.ok) {
-      setBotForm({ type: "", content: "" });
-      notify("Настройки бота сохранены");
+      setBlocks(nextBlocks);
+      notify(successText);
       await loadData();
+      return true;
+    }
+    notify("Не удалось сохранить настройки бота");
+    return false;
+  };
+
+  const saveBotConfig = async () => {
+    const type = botForm.type.trim();
+    const content = botForm.content.trim();
+    if (!type || !content) {
+      notify("Заполните тип и содержимое блока");
+      return;
+    }
+
+    const nextBlock = { type, content };
+    const nextBlocks =
+      botEditingIndex === null
+        ? [...blocks, nextBlock]
+        : blocks.map((block, index) => (index === botEditingIndex ? nextBlock : block));
+
+    const saved = await persistBotBlocks(nextBlocks, botEditingIndex === null ? "Блок добавлен" : "Блок обновлён");
+    if (!saved) return;
+    setBotForm({ type: "", content: "" });
+    setBotEditingIndex(null);
+  };
+
+  const editBotBlock = (block: BotBlock, index: number) => {
+    setBotForm({ type: block.type, content: block.content });
+    setBotEditingIndex(index);
+  };
+
+  const cancelBotEdit = () => {
+    setBotForm({ type: "", content: "" });
+    setBotEditingIndex(null);
+  };
+
+  const deleteBotBlock = async (indexToDelete: number) => {
+    const nextBlocks = blocks.filter((_, index) => index !== indexToDelete);
+    const saved = await persistBotBlocks(nextBlocks, "Блок удалён");
+    if (!saved) return;
+    if (botEditingIndex === indexToDelete) {
+      cancelBotEdit();
+    } else if (botEditingIndex !== null && botEditingIndex > indexToDelete) {
+      setBotEditingIndex(botEditingIndex - 1);
     }
   };
 
@@ -321,6 +417,14 @@ export default function AdminPanel() {
     if (response.ok) await loadData();
   };
 
+  const requestConfirm = (dialog: Omit<typeof confirmAction, "isOpen">) => {
+    setConfirmAction({ ...dialog, isOpen: true });
+  };
+
+  const closeConfirm = () => {
+    setConfirmAction({ isOpen: false, title: "", text: "", confirmText: "Удалить", onConfirm: null });
+  };
+
   if (!isStaff) return null;
 
   const tabs = ([
@@ -344,7 +448,7 @@ export default function AdminPanel() {
                 Панель управления
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-500">
-                Заказы, заявки, услуги, работы и настройки бота. Реестр пользователей доступен только администратору.
+                Конфигурация разделов и взаимодействия с клиентами.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-2 rounded-[20px] border border-white/10 bg-white/[0.03] p-1 md:grid-cols-3">
@@ -455,6 +559,52 @@ export default function AdminPanel() {
 
         {!loading && activeTab === "tickets" && (
           <Panel title="Заявки на обратную связь">
+            {isAdmin && (
+              <div className="mb-5 rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <h3 className="text-base font-semibold">Telegram-уведомления</h3>
+                    <p className="mt-1 text-sm text-zinc-500">Получатели новых заявок. Нужен Telegram ID пользователя.</p>
+                  </div>
+                  <form className="flex gap-2" onSubmit={addTelegramRecipient}>
+                    <input
+                      className="h-11 min-w-0 rounded-2xl border border-white/10 bg-[#050505] px-4 text-sm outline-none"
+                      inputMode="numeric"
+                      placeholder="Telegram ID"
+                      value={telegramForm}
+                      onChange={(event) => setTelegramForm(event.target.value.replace(/[^\d-]/g, ""))}
+                    />
+                    <button className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-medium text-black" type="submit">
+                      <Plus size={16} />
+                      Добавить
+                    </button>
+                  </form>
+                </div>
+                {telegramRecipients.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {telegramRecipients.map((recipient) => (
+                      <span key={recipient.id} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-[#050505] px-3 py-2 text-sm text-zinc-300">
+                        {recipient.telegram_user_id}
+                        <button
+                          className="text-red-100 transition hover:text-red-300"
+                          onClick={() =>
+                            requestConfirm({
+                              title: "Удалить получателя?",
+                              text: `Telegram ID ${recipient.telegram_user_id} больше не будет получать уведомления о новых заявках.`,
+                              confirmText: "Удалить",
+                              onConfirm: () => deleteTelegramRecipient(recipient.id),
+                            })
+                          }
+                          type="button"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="grid gap-3 lg:grid-cols-2">
               {tickets.map((ticket) => (
                 <article key={ticket.id} className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
@@ -521,7 +671,14 @@ export default function AdminPanel() {
             withPrice={activeTab === "services"}
             title={activeTab === "services" ? "Услуги" : "Работы"}
             onCreate={(event) => void createContent(activeTab, event)}
-            onDelete={(id) => void deleteContent(activeTab, id)}
+            onDelete={(id) =>
+              requestConfirm({
+                title: "Удалить запись?",
+                text: "Запись пропадёт с сайта после удаления.",
+                confirmText: "Удалить",
+                onConfirm: () => deleteContent(activeTab, id),
+              })
+            }
           />
         )}
 
@@ -529,17 +686,54 @@ export default function AdminPanel() {
           <Panel title="Настройки бота" note="Блоки используются как база знаний для ассистента.">
             <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
               <div className="grid gap-3">
+                {botEditingIndex !== null && (
+                  <div className="rounded-[18px] border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                    Редактируется блок #{botEditingIndex + 1}
+                  </div>
+                )}
                 <Field label="Тип блока" value={botForm.type} onChange={(value) => setBotForm((state) => ({ ...state, type: value }))} />
                 <Textarea label="Содержимое" value={botForm.content} onChange={(value) => setBotForm((state) => ({ ...state, content: value }))} />
-                <button className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-white px-5 text-sm font-medium text-black" onClick={() => void saveBotConfig()} type="button">
-                  <Save size={17} />
-                  Сохранить блоки
-                </button>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-white px-5 text-sm font-medium text-black" onClick={() => void saveBotConfig()} type="button">
+                    <Save size={17} />
+                    {botEditingIndex === null ? "Добавить блок" : "Сохранить"}
+                  </button>
+                  {botEditingIndex !== null && (
+                    <button className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 text-sm font-medium text-white transition hover:bg-white/[0.08]" onClick={cancelBotEdit} type="button">
+                      Отмена
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="grid gap-3">
                 {blocks.map((block, index) => (
                   <article key={`${block.type}-${index}`} className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-                    <div className="flex items-center gap-2 text-sm font-semibold"><FileText size={16} />{block.type}</div>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+                        <FileText size={16} />
+                        <span className="truncate">{block.type}</span>
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <button className="rounded-xl border border-white/10 bg-white/[0.04] p-2 text-zinc-200 transition hover:bg-white/[0.08]" onClick={() => editBotBlock(block, index)} type="button" aria-label="Редактировать блок">
+                          <Pencil size={15} />
+                        </button>
+                        <button
+                          className="rounded-xl border border-red-500/30 bg-red-500/10 p-2 text-red-100 transition hover:bg-red-500/20"
+                          onClick={() =>
+                            requestConfirm({
+                              title: "Удалить блок?",
+                              text: `Блок "${block.type}" будет удалён из базы знаний бота.`,
+                              confirmText: "Удалить",
+                              onConfirm: () => deleteBotBlock(index),
+                            })
+                          }
+                          type="button"
+                          aria-label="Удалить блок"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </div>
                     <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-zinc-500">{block.content}</p>
                   </article>
                 ))}
@@ -548,6 +742,17 @@ export default function AdminPanel() {
           </Panel>
         )}
       </div>
+      {confirmAction.isOpen && (
+        <ConfirmModal
+          title={confirmAction.title}
+          text={confirmAction.text}
+          confirmText={confirmAction.confirmText}
+          onCancel={closeConfirm}
+          onConfirm={async () => {
+            await confirmAction.onConfirm?.();
+          }}
+        />
+      )}
     </main>
   );
 }
@@ -660,6 +865,79 @@ function Status({ text }: { text: string }) {
   return <div className="rounded-[22px] border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{text}</div>;
 }
 
+function ConfirmModal({
+  confirmText,
+  onCancel,
+  onConfirm,
+  text,
+  title,
+}: {
+  confirmText: string;
+  onCancel: () => void;
+  onConfirm: () => Promise<void>;
+  text: string;
+  title: string;
+}) {
+  const [isClosing, setIsClosing] = useState(false);
+
+  const close = () => {
+    if (isClosing) return;
+    setIsClosing(true);
+    window.setTimeout(() => {
+      onCancel();
+      setIsClosing(false);
+    }, 220);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md transition-opacity duration-300"
+      style={{ opacity: isClosing ? 0 : 1 }}
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) close();
+      }}
+    >
+      <div
+        className="w-full max-w-md rounded-[26px] border border-white/10 bg-[#0b0b0c] p-6 shadow-[0_20px_70px_rgba(0,0,0,0.35)] transition-all duration-300"
+        style={{
+          opacity: isClosing ? 0 : 1,
+          transform: isClosing ? "translateY(10px) scale(0.98)" : "translateY(0) scale(1)",
+        }}
+        role="dialog"
+        aria-modal="true"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="mb-5 flex items-center justify-between gap-4">
+          <h3 className="text-xl font-semibold text-white">{title}</h3>
+          <button className="text-zinc-500 transition hover:text-white" onClick={close} type="button">
+            ×
+          </button>
+        </div>
+        <p className="mb-6 text-sm leading-6 text-zinc-300">{text}</p>
+        <div className="flex gap-3">
+          <button
+            className="flex-1 rounded-2xl bg-red-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-600"
+            onClick={async () => {
+              await onConfirm();
+              close();
+            }}
+            type="button"
+          >
+            {confirmText}
+          </button>
+          <button
+            className="flex-1 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-medium text-zinc-300 transition hover:bg-white/[0.08]"
+            onClick={close}
+            type="button"
+          >
+            Отмена
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Badge({ text }: { text: string }) {
   return <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-zinc-300">{text}</span>;
 }
@@ -681,13 +959,20 @@ function formatDate(value: string | null) {
 }
 
 function formatDateTime(value: string) {
-  const d = new Date(value);
+  const d = parseServerDateTime(value);
   if (Number.isNaN(d.getTime())) return "-";
 
-  const yyyy = d.getUTCFullYear();
-  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const dd = String(d.getUTCDate()).padStart(2, "0");
-  const hh = String(d.getUTCHours()).padStart(2, "0");
-  const min = String(d.getUTCMinutes()).padStart(2, "0");
-  return `${dd}.${mm}.${yyyy} ${hh}:${min}`;
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Moscow",
+  }).format(d);
+}
+
+function parseServerDateTime(value: string) {
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(value);
+  return new Date(hasTimezone ? value : `${value}Z`);
 }
