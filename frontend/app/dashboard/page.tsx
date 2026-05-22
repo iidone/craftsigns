@@ -89,7 +89,7 @@ export default function DashboardPage() {
     contactValue: "",
   });
 
-  const fullName = `${user?.first_name ?? ""} ${user?.last_name ?? ""} ${user?.patronymic ?? ""}`.trim();
+  const fullName = ` ${user?.last_name ?? ""} ${user?.first_name ?? ""} ${user?.patronymic ?? ""}`.trim();
   const [ticketForm, setTicketForm] = useState({ name: fullName, phone: "", email: "", description: "" });
   const [contactForm, setContactForm] = useState({ type: "phone", value: "", comment: "" });
 

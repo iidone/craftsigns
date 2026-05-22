@@ -1,0 +1,25 @@
+User-agent: *
+
+# Доступ к основным страницам (публичные разделы)
+Allow: /#*
+Allow: /#welcome
+Allow: /#portfolio
+Allow: /#services
+Allow: /#contacts
+Allow: /#delivery
+Allow: /#ie
+
+# Sitemap
+Sitemap: https://craftsigns.ru/sitemap.xml
+
+# Административные и личные страницы
+Disallow: /admin
+Disallow: /dashboard
+
+# Технические и небезопасные для индексации зоны
+Disallow: /api/
+Disallow: /_next/
+Disallow: /auth
+
+# Остальные пути по умолчанию не запрещаем, но рекомендуем боту сканировать только публичные страницы.
+
