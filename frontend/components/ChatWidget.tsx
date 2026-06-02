@@ -46,7 +46,9 @@ export const ChatWidget = () => {
 
     const userMessage = message.trim();
   
-    if (!authToken) {
+    const tokenForRequest = authToken || localStorage.getItem("auth_token");
+
+    if (!tokenForRequest) {
       const authErrorMsg: Message = { 
         role: "assistant", 
         content: "Для использования чата требуется авторизация. Пожалуйста, войдите в аккаунт.", 
@@ -67,11 +69,11 @@ export const ChatWidget = () => {
     setMessages((prev) => [...prev, newUserMsg]);
   
     try {
-      const response = await fetch("/api/v1/chat/", {
+      const response = await fetch("http://localhost:8000/v1/chat/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${authToken}`
+          "Authorization": `Bearer ${tokenForRequest}`
         },
         body: JSON.stringify({
           message: userMessage,
@@ -80,7 +82,15 @@ export const ChatWidget = () => {
       });
   
       if (!response.ok) {
-        throw new Error(response.status === 401 ? "Войдите в аккаунт заново." : "Сервер не отвечает. Попробуйте позже.");
+        const aiMsg: Message = {
+          role: "assistant",
+          content: response.status === 401
+            ? "Не удалось подтвердить вход для чат-бота. Обновите страницу или войдите заново."
+            : "Сервер не отвечает. Попробуйте позже.",
+          timestamp: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, aiMsg]);
+        return;
       };
   
       const data = await response.json();
@@ -93,7 +103,6 @@ export const ChatWidget = () => {
       };
       setMessages((prev) => [...prev, aiMsg]);
     } catch (error: unknown) {
-      console.error("Chat Error:", error);
       const errorMessage = getFriendlyFetchError(error, "Сервер не отвечает. Попробуйте позже.");
       setMessages((prev) => [...prev, { 
         role: "assistant", 

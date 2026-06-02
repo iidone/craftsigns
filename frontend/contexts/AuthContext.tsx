@@ -21,6 +21,20 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const isTokenExpired = (token: string) => {
+  try {
+    const payloadPart = token.split(".")[1];
+    const normalizedPayload = payloadPart
+      .replace(/-/g, "+")
+      .replace(/_/g, "/")
+      .padEnd(Math.ceil(payloadPart.length / 4) * 4, "=");
+    const payload = JSON.parse(atob(normalizedPayload)) as { exp?: number };
+    return typeof payload.exp === "number" && payload.exp * 1000 <= Date.now();
+  } catch {
+    return true;
+  }
+};
+
 const readStoredAuth = (): { token: string | null; user: UserInfo | null } => {
   if (typeof window === "undefined") {
     return { token: null, user: null };
@@ -30,6 +44,12 @@ const readStoredAuth = (): { token: string | null; user: UserInfo | null } => {
   const savedUser = localStorage.getItem("auth_user");
 
   if (!savedToken || !savedUser) {
+    return { token: null, user: null };
+  }
+
+  if (isTokenExpired(savedToken)) {
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("auth_user");
     return { token: null, user: null };
   }
 
