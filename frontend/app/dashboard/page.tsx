@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { CheckCircle2, MessageSquarePlus, Phone, Plus, Trash2, UserRound, X } from "lucide-react";
-import { formatPhone, getFriendlyError } from "@/utils/forms";
+import { formatPhone, getFriendlyError, getFriendlyFetchError } from "@/utils/forms";
 
 interface Order {
   id: number;
@@ -65,7 +65,7 @@ const typeLabels: Record<string, string> = {
 };
 
 export default function DashboardPage() {
-  const { token, user } = useAuth();
+  const { token, user, isReady } = useAuth();
   const router = useRouter();
 
   const staffRoles = new Set(["admin", "moderator"]);
@@ -111,25 +111,30 @@ export default function DashboardPage() {
 
   const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
-  const showMessage = (text: string, type: "success" | "error" = "success") => {
+  const showMessage = useCallback((text: string, type: "success" | "error" = "success") => {
     setMessage(text);
     setMessageType(type);
     window.setTimeout(() => setMessage(""), 3000);
-  };
+  }, []);
 
   const loadData = useCallback(async () => {
     if (!token) return;
 
-    const [ordersResponse, ticketsResponse, contactsResponse] = await Promise.all([
-      fetch("/api/v1/dashboard/orders", { headers }),
-      fetch("/api/v1/dashboard/tickets", { headers }),
-      fetch("/api/v1/dashboard/contact-methods", { headers }),
-    ]);
+    try {
+      const [ordersResponse, ticketsResponse, contactsResponse] = await Promise.all([
+        fetch("/api/v1/dashboard/orders", { headers }),
+        fetch("/api/v1/dashboard/tickets", { headers }),
+        fetch("/api/v1/dashboard/contact-methods", { headers }),
+      ]);
 
-    if (ordersResponse.ok) setOrders(await ordersResponse.json());
-    if (ticketsResponse.ok) setTickets(await ticketsResponse.json());
+      if (!ordersResponse.ok || !ticketsResponse.ok || !contactsResponse.ok) {
+        showMessage("Не удалось загрузить данные кабинета. Попробуйте обновить страницу.", "error");
+        return;
+      }
 
-    if (contactsResponse.ok) {
+      setOrders(await ordersResponse.json());
+      setTickets(await ticketsResponse.json());
+
       const nextContacts = (await contactsResponse.json()) as ContactMethod[];
       setContacts(nextContacts);
 
@@ -141,11 +146,14 @@ export default function DashboardPage() {
         phone: phoneContact?.value ?? prev.phone,
         email: emailContact?.value ?? prev.email,
       }));
+    } catch (error) {
+      showMessage(getFriendlyFetchError(error, "Сервер не отвечает. Попробуйте позже."), "error");
     }
-  }, [headers, token]);
+  }, [headers, showMessage, token]);
 
 
   useEffect(() => {
+    if (!isReady) return;
     if (!user) {
       router.push("/");
       return;
@@ -158,7 +166,7 @@ export default function DashboardPage() {
 
     const timer = window.setTimeout(() => void loadData(), 0);
     return () => window.clearTimeout(timer);
-  }, [isStaff, loadData, router, user]);
+  }, [isReady, isStaff, loadData, router, user]);
 
   const createTicket = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -251,6 +259,18 @@ export default function DashboardPage() {
   const availableTypes = availableContactTypes.filter(
     type => !existingTypes.includes(type.value)
   );
+
+  if (!isReady) {
+    return (
+      <main className="min-h-screen bg-[#050505] px-4 py-6 text-white sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-[1240px] gap-4">
+          <section className="section-panel p-8 text-center text-sm text-zinc-500">
+            Проверка доступа...
+          </section>
+        </div>
+      </main>
+    );
+  }
 
   if (!user) return null;
   if (isStaff) return null;

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Map, Placemark, YMaps } from "@pbe/react-yandex-maps";
 import { Mail, MapPin, Phone, Send } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { formatPhone, getFriendlyError } from "@/utils/forms";
+import { formatPhone, getFriendlyError, isAbortError } from "@/utils/forms";
 
 interface ContactMethod {
   id: number;
@@ -24,7 +24,6 @@ const contacts = [
 
 export const Contacts = () => {
   const { token, user } = useAuth();
-  const [showMap, setShowMap] = useState(false);
   const [form, setForm] = useState({ name: "", phone: "", email: "", description: "" });
   const [lockedContacts, setLockedContacts] = useState({ phone: false, email: false });
   const [status, setStatus] = useState("");
@@ -39,21 +38,22 @@ export const Contacts = () => {
   useEffect(() => {
     if (!isAuthorized) return;
 
-    const controller = new AbortController();
+    let isMounted = true;
 
     const loadContactDefaults = async () => {
-      const response = await fetch("/api/v1/dashboard/contact-methods", {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: controller.signal,
-      });
+      try {
+        const response = await fetch("/api/v1/dashboard/contact-methods", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-      if (!response.ok) return;
+        if (!response.ok || !isMounted) return;
 
-      const contacts = (await response.json()) as ContactMethod[];
-      const phone = contacts.find((contact) => contact.type === "phone")?.value ?? "";
-      const email = contacts.find((contact) => contact.type === "Email")?.value ?? user?.email ?? "";
+        const contacts = (await response.json()) as ContactMethod[];
+        const phone = contacts.find((contact) => contact.type === "phone")?.value ?? "";
+        const email = contacts.find((contact) => contact.type === "Email")?.value ?? user?.email ?? "";
 
-      const timer = window.setTimeout(() => {
+        if (!isMounted) return;
+
         setLockedContacts({ phone: Boolean(phone), email: Boolean(email) });
         setForm((state) => ({
           ...state,
@@ -61,14 +61,18 @@ export const Contacts = () => {
           phone: phone || state.phone,
           email: email || state.email,
         }));
-      }, 0);
-
-      return () => window.clearTimeout(timer);
+      } catch (error) {
+        if (isMounted && !isAbortError(error)) {
+          setStatus("Не удалось загрузить ваши контактные данные. Форму можно заполнить вручную.");
+        }
+      }
     };
 
     void loadContactDefaults();
 
-    return () => controller.abort();
+    return () => {
+      isMounted = false;
+    };
   }, [fullName, isAuthorized, token, user?.email]);
 
   useEffect(() => {
@@ -83,30 +87,31 @@ export const Contacts = () => {
     event.preventDefault();
     setStatus("");
 
-    const response = await fetch(isAuthorized ? "/api/v1/dashboard/tickets" : "/api/v1/dashboard/public-tickets", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(form),
-    });
-
-    if (response.ok) {
-      setForm((state) => ({
-        name: isNameLocked ? fullName : "",
-        phone: isPhoneLocked ? state.phone : "",
-        email: isEmailLocked ? state.email : "",
-        description: "",
-      }));
-      setStatus("Заявка отправлена. Мы скоро свяжемся с вами.");
-      return;
-    }
-
     try {
-      const data = await response.json();
+      const response = await fetch(isAuthorized ? "/api/v1/dashboard/tickets" : "/api/v1/dashboard/public-tickets", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(form),
+      });
+
+      if (response.ok) {
+        setForm((state) => ({
+          name: isNameLocked ? fullName : "",
+          phone: isPhoneLocked ? state.phone : "",
+          email: isEmailLocked ? state.email : "",
+          description: "",
+        }));
+        setStatus("Заявка отправлена. Мы скоро свяжемся с вами.");
+        return;
+      }
+
+      const data = await response.json().catch(() => null);
       setStatus(getFriendlyError(data, "Не удалось отправить заявку. Попробуйте позже."));
-    } catch {
+    } catch (error) {
+      if (isAbortError(error)) return;
       setStatus("Не удалось отправить заявку. Попробуйте позже.");
     }
   };
@@ -201,42 +206,27 @@ export const Contacts = () => {
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-lg font-semibold text-white">Расположение</h3>
-              <p className="mt-1 text-sm text-zinc-500">Карта загружается только после нажатия.</p>
+              <p className="mt-1 text-sm text-zinc-500">Карта открыта сразу, чтобы показать подключение Яндекс.Карт.</p>
             </div>
-            {!showMap && (
-              <button
-                className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
-                onClick={() => setShowMap(true)}
-                type="button"
-              >
-                Показать карту
-              </button>
-            )}
           </div>
 
           <div className="h-[320px] overflow-hidden rounded-[22px] border border-white/10 bg-[#050505]">
-            {showMap ? (
-              <YMaps query={{ apikey: process.env.NEXT_PUBLIC_YANDEX_MAP_API_KEY || "demo" }}>
-                <Map state={{ center: defaultCoords, zoom: 12 }} className="h-full w-full">
-                  <Placemark
-                    geometry={defaultCoords}
-                    properties={{
-                      iconCaption: "CraftSigns",
-                      hintContent: "Офис CraftSigns",
-                      balloonContent: "CraftSigns<br/>г. Москва, Остаповский пр-д, д. 13<br/>Звоните: +7 (900) 123-45-67",
-                    }}
-                    options={{
-                      preset: "islands#icon",
-                      iconColor: "#ffffff",
-                    }}
-                  />
-                </Map>
-              </YMaps>
-            ) : (
-              <div className="flex h-full items-center justify-center p-6 text-center text-sm leading-6 text-zinc-500">
-                Нажмите «Показать карту», чтобы загрузить Яндекс.Карты.
-              </div>
-            )}
+            <YMaps query={{ apikey: process.env.NEXT_PUBLIC_YANDEX_MAP_API_KEY || "demo" }}>
+              <Map state={{ center: defaultCoords, zoom: 12 }} className="h-full w-full">
+                <Placemark
+                  geometry={defaultCoords}
+                  properties={{
+                    iconCaption: "CraftSigns",
+                    hintContent: "Офис CraftSigns",
+                    balloonContent: "CraftSigns<br/>г. Москва, Остаповский пр-д, д. 13<br/>Звоните: +7 (900) 123-45-67",
+                  }}
+                  options={{
+                    preset: "islands#icon",
+                    iconColor: "#ffffff",
+                  }}
+                />
+              </Map>
+            </YMaps>
           </div>
         </div>
       </div>

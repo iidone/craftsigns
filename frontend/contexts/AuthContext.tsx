@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 
 interface UserInfo {
   id: number;
@@ -14,6 +14,7 @@ interface UserInfo {
 interface AuthContextType {
   token: string | null;
   user: UserInfo | null;
+  isReady: boolean;
   login: (token: string, userInfo: UserInfo) => void;
   logout: () => void;
 }
@@ -41,8 +42,18 @@ const readStoredAuth = (): { token: string | null; user: UserInfo | null } => {
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => readStoredAuth().token);
-  const [user, setUser] = useState<UserInfo | null>(() => readStoredAuth().user);
+  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<UserInfo | null>(null);
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      const storedAuth = readStoredAuth();
+      setToken(storedAuth.token);
+      setUser(storedAuth.user);
+      setIsReady(true);
+    });
+  }, []);
 
   const login = (newToken: string, userInfo: UserInfo) => {
     setToken(newToken);
@@ -59,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ token, user, login, logout }}>
+    <AuthContext.Provider value={{ token, user, isReady, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

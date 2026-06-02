@@ -179,7 +179,7 @@ const StateBlock = ({ loading, error, empty }: { loading: boolean; error: string
   return (
     <div className="mt-8 rounded-[24px] border border-white/10 bg-white/[0.03] p-8 text-center text-sm text-zinc-400">
       {loading && "Загрузка услуг..."}
-      {error && `Ошибка: ${error}`}
+      {error && error}
       {empty && "Пока нет услуг"}
     </div>
   );
@@ -207,7 +207,7 @@ const ServiceCard = ({ item, onClick }: { item: ServiceItem; onClick: (item: Ser
           <p className="mt-2 line-clamp-3 text-sm leading-6 text-zinc-500">{item.description}</p>
         )}
         {item.price && (
-          <p className="mt-auto pt-5 text-sm font-semibold text-white">{item.price}</p>
+          <p className="mt-auto pt-5 text-sm font-semibold text-white">{item.price} ₽</p>
         )}
       </div>
     </button>

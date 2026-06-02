@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { MessageCircle, X, Send, Bot } from "lucide-react";
+import { getFriendlyFetchError } from "@/utils/forms";
 
 interface Message {
   role: "user" | "assistant";
@@ -66,7 +67,7 @@ export const ChatWidget = () => {
     setMessages((prev) => [...prev, newUserMsg]);
   
     try {
-      const response = await fetch("http://localhost:8000/v1/chat/", {
+      const response = await fetch("/api/v1/chat/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -79,16 +80,7 @@ export const ChatWidget = () => {
       });
   
       if (!response.ok) {
-        let errorMsg = "Ошибка связи с сервером";
-        try {
-          const errorData = await response.json();
-          if (response.status === 401 && errorData.detail) {
-            errorMsg = `Ошибка авторизации: ${errorData.detail}. Войдите заново.`;
-          }
-        } catch {
-          // Ignore parse error
-        }
-        throw new Error(errorMsg);
+        throw new Error(response.status === 401 ? "Войдите в аккаунт заново." : "Сервер не отвечает. Попробуйте позже.");
       };
   
       const data = await response.json();
@@ -102,10 +94,10 @@ export const ChatWidget = () => {
       setMessages((prev) => [...prev, aiMsg]);
     } catch (error: unknown) {
       console.error("Chat Error:", error);
-      const errorMessage = error instanceof Error ? error.message : "Ошибка связи с сервером";
+      const errorMessage = getFriendlyFetchError(error, "Сервер не отвечает. Попробуйте позже.");
       setMessages((prev) => [...prev, { 
         role: "assistant", 
-        content: errorMessage, 
+        content: errorMessage || "Сервер не отвечает. Попробуйте позже.", 
         timestamp: new Date().toISOString() 
       }]);
     } finally {

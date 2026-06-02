@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { getFriendlyFetchError } from "@/utils/forms";
 import {
   Bell,
   BriefcaseBusiness,
@@ -101,7 +102,7 @@ const ticketStatuses = [
 ];
 
 export default function AdminPanel() {
-  const { user, token } = useAuth();
+  const { user, token, isReady } = useAuth();
   const router = useRouter();
   const isAdmin = user?.role === "admin";
   const isStaff = Boolean(user && staffRoles.has(user.role));
@@ -233,26 +234,27 @@ export default function AdminPanel() {
         setTelegramRecipients(await telegramResponse.json());
       }
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Ошибка загрузки");
+      notify(getFriendlyFetchError(error, "Сервер не отвечает. Попробуйте позже."));
     } finally {
       setLoading(false);
     }
   }, [authHeaders, isAdmin, notify, playTicketSound, token]);
 
   useEffect(() => {
+    if (!isReady) return;
     if (!user) return;
     if (!isStaff) {
       router.push("/");
       return;
     }
     void loadData();
-  }, [isStaff, loadData, router, user]);
+  }, [isReady, isStaff, loadData, router, user]);
 
   useEffect(() => {
-    if (!token || !isStaff) return;
+    if (!isReady || !token || !isStaff) return;
     const interval = window.setInterval(() => void loadData(), 30000);
     return () => window.clearInterval(interval);
-  }, [isStaff, loadData, token]);
+  }, [isReady, isStaff, loadData, token]);
 
   const createOrder = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -268,7 +270,7 @@ export default function AdminPanel() {
       }),
     });
     if (!response.ok) {
-      notify("Не удалось создать заказ");
+      notify("Не удалось создать заказ. Проверьте данные и попробуйте ещё раз.");
       return;
     }
     setOrderForm({ user_id: "", service_id: "", title: "", description: "", status: "draft", stage: "Черновик", due_date: "", installation_date: "" });
@@ -282,7 +284,12 @@ export default function AdminPanel() {
       headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({ status, stage: orderStatuses.find((item) => item.value === status)?.label || order.stage }),
     });
-    if (response.ok) await loadData();
+    if (response.ok) {
+      notify("Статус заказа обновлён");
+      await loadData();
+      return;
+    }
+    notify("Не удалось обновить статус заказа. Попробуйте позже.");
   };
 
   const closeTicket = async (ticketId: number) => {
@@ -290,7 +297,9 @@ export default function AdminPanel() {
     if (response.ok) {
       notify("Заявка закрыта");
       await loadData();
+      return;
     }
+    notify("Не удалось закрыть заявку. Попробуйте позже.");
   };
 
   const addTelegramRecipient = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -322,7 +331,9 @@ export default function AdminPanel() {
     if (response.ok) {
       notify("Получатель Telegram удалён");
       await loadData();
+      return;
     }
+    notify("Не удалось удалить получателя Telegram. Попробуйте позже.");
   };
 
   const updateRole = async (userId: number, role: string) => {
@@ -331,7 +342,12 @@ export default function AdminPanel() {
       headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({ role }),
     });
-    if (response.ok) await loadData();
+    if (response.ok) {
+      notify("Роль пользователя обновлена");
+      await loadData();
+      return;
+    }
+    notify("Не удалось изменить роль пользователя. Попробуйте позже.");
   };
 
   const persistBotBlocks = async (nextBlocks: BotBlock[], successText = "Настройки бота сохранены") => {
@@ -409,12 +425,19 @@ export default function AdminPanel() {
       setContentForm({ name: "", description: "", price: "", photoFile: null });
       notify(type === "services" ? "Услуга добавлена" : "Работа добавлена");
       await loadData();
+      return;
     }
+    notify(type === "services" ? "Не удалось добавить услугу. Проверьте поля формы." : "Не удалось добавить работу. Проверьте поля формы.");
   };
 
   const deleteContent = async (type: "services" | "portfolio", id: number) => {
     const response = await fetch(`/api/v1/portfolio_and_services/${type}/${id}`, { method: "DELETE", headers: authHeaders });
-    if (response.ok) await loadData();
+    if (response.ok) {
+      notify(type === "services" ? "Услуга удалена" : "Работа удалена");
+      await loadData();
+      return;
+    }
+    notify(type === "services" ? "Не удалось удалить услугу. Попробуйте позже." : "Не удалось удалить работу. Попробуйте позже.");
   };
 
   const requestConfirm = (dialog: Omit<typeof confirmAction, "isOpen">) => {
@@ -424,6 +447,18 @@ export default function AdminPanel() {
   const closeConfirm = () => {
     setConfirmAction({ isOpen: false, title: "", text: "", confirmText: "Удалить", onConfirm: null });
   };
+
+  if (!isReady) {
+    return (
+      <main className="min-h-screen bg-[#050505] px-4 py-6 text-white sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-[1440px] gap-4">
+          <section className="section-panel p-8 text-center text-sm text-zinc-500">
+            Проверка доступа...
+          </section>
+        </div>
+      </main>
+    );
+  }
 
   if (!isStaff) return null;
 
@@ -803,7 +838,7 @@ function ContentEditor({
                   </button>
                 </div>
                 {item.description && <p className="mt-2 line-clamp-2 text-sm text-zinc-500">{item.description}</p>}
-                {item.price && <p className="mt-3 text-sm font-semibold">{item.price}</p>}
+                {item.price && <p className="mt-3 text-sm font-semibold">{item.price} ₽</p>}
               </div>
             </article>
           ))}

@@ -128,7 +128,7 @@ const StateBlock = ({ loading, error, empty }: { loading: boolean; error: string
   return (
     <div className="mt-8 rounded-[24px] border border-white/10 bg-white/[0.03] p-8 text-center text-sm text-zinc-400">
       {loading && "Загрузка работ..."}
-      {error && `Ошибка: ${error}`}
+      {error && error}
       {empty && "Пока нет работ в портфолио"}
     </div>
   );

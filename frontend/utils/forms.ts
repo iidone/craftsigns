@@ -38,6 +38,10 @@ const messageMap: Array<[RegExp, string]> = [
   [/value is not a valid email|email/i, "Введите корректный email."],
   [/incorrect username or password|invalid credentials|not authenticate/i, "Неверный email или пароль."],
   [/already registered|already exists|duplicate/i, "Такая запись уже существует."],
+  [/unauthorized|not authenticated|token|401/i, "Войдите в аккаунт заново."],
+  [/forbidden|permission|403/i, "У вас нет доступа к этому действию."],
+  [/not found|404/i, "Запись не найдена или уже удалена."],
+  [/network|failed to fetch|server|timeout/i, "Сервер не отвечает. Попробуйте позже."],
 ];
 
 const stringifyDetail = (detail: unknown): string => {
@@ -71,4 +75,14 @@ export const getFriendlyError = (payload: unknown, fallback = "Что-то по�
   if (!raw || raw.includes("[object Object]")) return fallback;
   const mapped = messageMap.find(([pattern]) => pattern.test(raw));
   return mapped?.[1] ?? raw;
+};
+
+export const isAbortError = (error: unknown) =>
+  error instanceof DOMException && error.name === "AbortError";
+
+export const getFriendlyFetchError = (error: unknown, fallback = "Сервер не отвечает. Попробуйте позже.") => {
+  if (isAbortError(error)) return "";
+  if (error instanceof TypeError) return fallback;
+  if (error instanceof Error) return getFriendlyError(error.message, fallback);
+  return fallback;
 };
