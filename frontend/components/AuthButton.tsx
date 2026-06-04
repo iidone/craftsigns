@@ -4,6 +4,14 @@ import { useEffect, useState } from "react";
 import { LogIn, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getFriendlyError } from "@/utils/forms";
+import {
+  isValidRegistration,
+  validateRegistration,
+  validateRegistrationField,
+  type RegistrationFormValues,
+} from "@/utils/registrationValidation";
+
+
 
 type ModalMode = "login" | "register";
 
@@ -24,7 +32,15 @@ export const AuthButton = () => {
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
+  const [registerErrors, setRegisterErrors] = useState<Partial<Record<keyof RegistrationFormValues, string>>>({});
+  const [registerTouched, setRegisterTouched] = useState<Partial<Record<keyof RegistrationFormValues, boolean>>>({});
+
+  const setRegisterFieldError = (key: keyof RegistrationFormValues, err?: string) => {
+    setRegisterErrors((prev) => ({ ...prev, [key]: err || undefined }));
+  };
+
   useEffect(() => {
+
     setMounted(true);
   }, []);
 
@@ -59,11 +75,40 @@ export const AuthButton = () => {
     }
   };
 
+  const registerValues: RegistrationFormValues = {
+    email: regEmail,
+    password: regPassword,
+    first_name: regFirstName,
+    last_name: regLastName,
+    patronymic: regPatronymic,
+  };
+
+  const computedRegisterErrors = validateRegistration(registerValues);
+  const isRegisterFormValid = isValidRegistration(registerValues);
+
   const handleRegister = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
     setSuccessMessage("");
     setLoading(true);
+
+    const nextTouched: Partial<Record<keyof RegistrationFormValues, boolean>> = {
+      email: true,
+      password: true,
+      first_name: true,
+      last_name: true,
+      patronymic: true,
+    };
+    setRegisterTouched(nextTouched);
+
+    const nextErrors = computedRegisterErrors;
+    setRegisterErrors(nextErrors);
+
+    if (!isRegisterFormValid) {
+      setLoading(false);
+      return;
+    }
+
 
     try {
       const response = await fetch("/api/v1/users/users", {
@@ -233,24 +278,83 @@ export const AuthButton = () => {
                       text="Создайте аккаунт для получения доступа к чат-боту и оформления заказов."
                     />
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <AuthField label="Имя" value={regFirstName} onChange={setRegFirstName} />
-                      <AuthField label="Фамилия" value={regLastName} onChange={setRegLastName} />
+                      <AuthField
+                        label="Имя"
+                        value={regFirstName}
+                        onChange={(v) => {
+                          setRegFirstName(v);
+                          const err = validateRegistrationField("first_name", v);
+                          setRegisterFieldError("first_name", err);
+                          setRegisterTouched((p) => ({ ...p, first_name: true }));
+                        }}
+                        error={registerTouched.first_name ? registerErrors.first_name : undefined}
+                        inputMode="text"
+                      />
+                      <AuthField
+                        label="Фамилия"
+                        value={regLastName}
+                        onChange={(v) => {
+                          setRegLastName(v);
+                          const err = validateRegistrationField("last_name", v);
+                          setRegisterFieldError("last_name", err);
+                          setRegisterTouched((p) => ({ ...p, last_name: true }));
+                        }}
+                        error={registerTouched.last_name ? registerErrors.last_name : undefined}
+                        inputMode="text"
+                      />
                     </div>
                     <AuthField
                       label="Отчество"
                       value={regPatronymic}
-                      onChange={setRegPatronymic}
+                      onChange={(v) => {
+                        setRegPatronymic(v);
+                        const err = validateRegistrationField("patronymic", v);
+                        setRegisterFieldError("patronymic", err);
+                        setRegisterTouched((p) => ({ ...p, patronymic: true }));
+                      }}
                       required={false}
+                      error={registerTouched.patronymic ? registerErrors.patronymic : undefined}
+                      inputMode="text"
                     />
-                    <AuthField label="Email" type="email" value={regEmail} onChange={setRegEmail} />
-                    <AuthField label="Пароль" type="password" value={regPassword} onChange={setRegPassword} />
+                    <AuthField
+                      label="Email"
+                      type="email"
+                      value={regEmail}
+                      onChange={(v) => {
+                        setRegEmail(v);
+                        const err = validateRegistrationField("email", v);
+                        setRegisterFieldError("email", err);
+                        setRegisterTouched((p) => ({ ...p, email: true }));
+                      }}
+                      error={registerTouched.email ? registerErrors.email : undefined}
+                      autoComplete="email"
+                      inputMode="email"
+                    />
+                    <AuthField
+                      label="Пароль"
+                      type="password"
+                      value={regPassword}
+                      onChange={(v) => {
+                        setRegPassword(v);
+                        const err = validateRegistrationField("password", v);
+                        setRegisterFieldError("password", err);
+                        setRegisterTouched((p) => ({ ...p, password: true }));
+                      }}
+                      error={registerTouched.password ? registerErrors.password : undefined}
+                      autoComplete="new-password"
+                    />
+
                     <Feedback error={error} success={successMessage} />
                     <button
                       className="h-11 rounded-2xl bg-white px-4 text-sm font-medium text-black transition hover:bg-zinc-200 disabled:opacity-50"
-                      disabled={loading}
+                      disabled={loading || !isRegisterFormValid}
+                      aria-disabled={loading || !isRegisterFormValid}
+                      type="submit"
                     >
+
                       {loading ? "Создание..." : "Зарегистрироваться"}
                     </button>
+
                   </form>
                 )}
               </div>
@@ -275,24 +379,43 @@ const AuthField = ({
   onChange,
   type = "text",
   required = true,
+  error,
+  inputMode,
+  autoComplete,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
   required?: boolean;
-}) => (
-  <label className="grid gap-2 text-sm text-zinc-300">
-    <span>{label}</span>
-    <input
-      className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-white/30 focus:bg-white/[0.07]"
-      onChange={(event) => onChange(event.target.value)}
-      required={required}
-      type={type}
-      value={value}
-    />
-  </label>
-);
+  error?: string;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+  autoComplete?: string;
+}) => {
+  const hasError = Boolean(error);
+
+  return (
+    <label className="grid gap-2 text-sm text-zinc-300">
+      <span>{label}</span>
+      <input
+        className={
+          "h-11 rounded-2xl border px-4 text-sm text-white outline-none transition placeholder:text-zinc-600 " +
+          (hasError
+            ? "border-red-500/70 bg-red-500/5 focus:border-red-500"
+            : "border-white/10 bg-white/[0.04] focus:border-white/30 focus:bg-white/[0.07]")
+        }
+        onChange={(event) => onChange(event.target.value)}
+        required={required}
+        type={type}
+        value={value}
+        inputMode={inputMode}
+        autoComplete={autoComplete}
+      />
+      {hasError ? <span className="text-xs text-red-300">{error}</span> : null}
+    </label>
+  );
+};
+
 
 const Feedback = ({ error, success }: { error: string; success: string }) => {
   if (!error && !success) return null;

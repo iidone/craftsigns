@@ -55,12 +55,14 @@ const availableContactTypes = [
   { value: "phone", label: "Телефон" },
   { value: "telegram", label: "Telegram" },
   { value: "whatsapp", label: "WhatsApp" },
+  { value: "max", label: "Макс"}
 ];
 
 const typeLabels: Record<string, string> = {
   phone: "Телефон",
   telegram: "Telegram",
   whatsapp: "WhatsApp",
+  max: "Макс",
   Email: "Email",
 };
 
@@ -200,16 +202,16 @@ export default function DashboardPage() {
 
     if (response.ok) {
       setContactForm({ type: "phone", value: "", comment: "" });
-      showMessage("✅ Способ связи добавлен");
+      showMessage("Способ связи добавлен");
       await loadData();
       return;
     }
 
     try {
       const data = await response.json();
-      showMessage(`❌ ${getFriendlyError(data, "Не удалось добавить способ связи")}`, "error");
+      showMessage(`${getFriendlyError(data, "Не удалось добавить способ связи")}`, "error");
     } catch {
-      showMessage("❌ Не удалось добавить способ связи", "error");
+      showMessage("Не удалось добавить способ связи", "error");
     }
   };
 
@@ -240,14 +242,14 @@ export default function DashboardPage() {
     });
     
     if (response.ok) {
-      showMessage("✅ Способ связи удалён");
+      showMessage("Способ связи удалён");
       await loadData();
     } else {
       try {
         const data = await response.json();
-        showMessage(`❌ ${getFriendlyError(data, "Не удалось удалить способ связи")}`, "error");
+        showMessage(`${getFriendlyError(data, "Не удалось удалить способ связи")}`, "error");
       } catch {
-        showMessage("❌ Не удалось удалить способ связи", "error");
+        showMessage("Не удалось удалить способ связи", "error");
       }
     }
   };
