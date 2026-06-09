@@ -19,7 +19,7 @@ interface ContactMethod {
 const contacts = [
   { icon: Phone, title: "Телефон", value: "+7 (900) 123-45-67", href: "tel:+79001234567" },
   { icon: Mail, title: "Email", value: "craftsigns@yandex.ru", href: "mailto:craftsigns@yandex.ru" },
-  { icon: MapPin, title: "Адрес", value: "г. Москва, ул. Остаповский пр-д, д. 13" },
+  { icon: MapPin, title: "Адрес", value: "г. Москва, ул. Остаповский пр-д, д. 13с2" },
 ];
 
 export const Contacts = () => {
@@ -27,7 +27,7 @@ export const Contacts = () => {
   const [form, setForm] = useState({ name: "", phone: "", email: "", description: "" });
   const [lockedContacts, setLockedContacts] = useState({ phone: false, email: false });
   const [status, setStatus] = useState("");
-  const defaultCoords: [number, number] = [55.7558, 37.6173];
+  const defaultCoords: [number, number] = [55.718476, 37.717276];
   const fullName = `${user?.first_name ?? ""} ${user?.last_name ?? ""} ${user?.patronymic ?? ""}`.trim();
 
   const isAuthorized = Boolean(token && user);
@@ -206,7 +206,7 @@ export const Contacts = () => {
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-lg font-semibold text-white">Расположение</h3>
-              <p className="mt-1 text-sm text-zinc-500">Карта открыта сразу, чтобы показать подключение Яндекс.Карт.</p>
+              <p className="mt-1 text-sm text-zinc-500">Мы находимся рядом с м. Текстильщики.</p>
             </div>
           </div>
 
@@ -218,7 +218,7 @@ export const Contacts = () => {
                   properties={{
                     iconCaption: "CraftSigns",
                     hintContent: "Офис CraftSigns",
-                    balloonContent: "CraftSigns<br/>г. Москва, Остаповский пр-д, д. 13<br/>Звоните: +7 (900) 123-45-67",
+                    balloonContent: "CraftSigns<br/>г. Москва, Остаповский пр-д, д. 13с2<br/>Звоните: +7 (900) 123-45-67",
                   }}
                   options={{
                     preset: "islands#icon",

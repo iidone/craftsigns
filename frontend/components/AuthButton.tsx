@@ -13,7 +13,7 @@ import {
 
 
 
-type ModalMode = "login" | "register";
+type ModalMode = "login" | "register" | "forgot";
 
 export const AuthButton = () => {
   const { user, login, logout } = useAuth();
@@ -28,6 +28,8 @@ export const AuthButton = () => {
   const [regFirstName, setRegFirstName] = useState("");
   const [regLastName, setRegLastName] = useState("");
   const [regPatronymic, setRegPatronymic] = useState("");
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
@@ -140,6 +142,24 @@ export const AuthButton = () => {
     }
   };
 
+  const handleForgot = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      await fetch("/api/v1/users/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail }),
+      });
+      setForgotSent(true);
+    } catch {
+      setForgotSent(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const resetForm = () => {
     setEmail("");
     setPassword("");
@@ -150,6 +170,8 @@ export const AuthButton = () => {
     setRegPatronymic("");
     setError("");
     setSuccessMessage("");
+    setForgotEmail("");
+    setForgotSent(false);
   };
 
   const [isClosing, setIsClosing] = useState(false);
@@ -228,26 +250,30 @@ export const AuthButton = () => {
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-white/10 p-4">
-              <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white/[0.03] p-1">
-                <button
-                  className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${
-                    modalMode === "login" ? "bg-white text-black" : "text-zinc-400 hover:bg-white/[0.04]"
-                  }`}
-                  onClick={() => setModalMode("login")}
-                  type="button"
-                >
-                  Вход
-                </button>
-                <button
-                  className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${
-                    modalMode === "register" ? "bg-white text-black" : "text-zinc-400 hover:bg-white/[0.04]"
-                  }`}
-                  onClick={() => setModalMode("register")}
-                  type="button"
-                >
-                  Регистрация
-                </button>
-              </div>
+              {modalMode === "forgot" ? (
+                <span className="px-1 text-sm font-medium text-zinc-400">Сброс пароля</span>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white/[0.03] p-1">
+                  <button
+                    className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${
+                      modalMode === "login" ? "bg-white text-black" : "text-zinc-400 hover:bg-white/[0.04]"
+                    }`}
+                    onClick={() => { setModalMode("login"); setError(""); setSuccessMessage(""); }}
+                    type="button"
+                  >
+                    Вход
+                  </button>
+                  <button
+                    className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${
+                      modalMode === "register" ? "bg-white text-black" : "text-zinc-400 hover:bg-white/[0.04]"
+                    }`}
+                    onClick={() => { setModalMode("register"); setError(""); setSuccessMessage(""); }}
+                    type="button"
+                  >
+                    Регистрация
+                  </button>
+                </div>
+              )}
               <button className="text-zinc-500 transition hover:text-white" onClick={handleClose} type="button">
                 <X size={20} />
               </button>
@@ -255,12 +281,9 @@ export const AuthButton = () => {
 
             <div className="p-5">
               <div className="transition-opacity duration-200">
-                {modalMode === "login" ? (
+                {modalMode === "login" && (
                   <form className="grid gap-3" onSubmit={handleLogin}>
-                    <ModalTitle
-                      title="Вход в аккаунт"
-                      text="Введите email и пароль."
-                    />
+                    <ModalTitle title="Вход в аккаунт" text="Введите email и пароль." />
                     <AuthField label="Email" type="email" value={email} onChange={setEmail} />
                     <AuthField label="Пароль" type="password" value={password} onChange={setPassword} />
                     <Feedback error={error} success={successMessage} />
@@ -270,8 +293,17 @@ export const AuthButton = () => {
                     >
                       {loading ? "Вход..." : "Войти"}
                     </button>
+                    <button
+                      type="button"
+                      className="text-center text-xs text-zinc-500 transition hover:text-zinc-300"
+                      onClick={() => { setModalMode("forgot"); setError(""); setSuccessMessage(""); }}
+                    >
+                      Забыли пароль?
+                    </button>
                   </form>
-                ) : (
+                )}
+
+                {modalMode === "register" && (
                   <form className="grid gap-3" onSubmit={handleRegister}>
                     <ModalTitle
                       title="Регистрация"
@@ -343,7 +375,6 @@ export const AuthButton = () => {
                       error={registerTouched.password ? registerErrors.password : undefined}
                       autoComplete="new-password"
                     />
-
                     <Feedback error={error} success={successMessage} />
                     <button
                       className="h-11 rounded-2xl bg-white px-4 text-sm font-medium text-black transition hover:bg-zinc-200 disabled:opacity-50"
@@ -351,11 +382,57 @@ export const AuthButton = () => {
                       aria-disabled={loading || !isRegisterFormValid}
                       type="submit"
                     >
-
                       {loading ? "Создание..." : "Зарегистрироваться"}
                     </button>
-
                   </form>
+                )}
+
+                {modalMode === "forgot" && (
+                  forgotSent ? (
+                    <div className="grid gap-4">
+                      <ModalTitle
+                        title="Письмо отправлено"
+                        text="Если этот email зарегистрирован, вам придёт письмо со ссылкой. Ссылка действительна 60 минут."
+                      />
+                      <button
+                        type="button"
+                        className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] text-sm text-zinc-300 transition hover:bg-white/[0.08]"
+                        onClick={() => { setModalMode("login"); setForgotSent(false); setForgotEmail(""); }}
+                      >
+                        Вернуться ко входу
+                      </button>
+                    </div>
+                  ) : (
+                    <form className="grid gap-3" onSubmit={handleForgot}>
+                      <ModalTitle
+                        title="Забыли пароль?"
+                        text="Введите email — вышлем ссылку для создания нового пароля."
+                      />
+                      <AuthField
+                        label="Email"
+                        type="email"
+                        value={forgotEmail}
+                        onChange={setForgotEmail}
+                        autoComplete="email"
+                        inputMode="email"
+                      />
+                      <Feedback error={error} success="" />
+                      <button
+                        className="h-11 rounded-2xl bg-white px-4 text-sm font-medium text-black transition hover:bg-zinc-200 disabled:opacity-50"
+                        disabled={loading}
+                        type="submit"
+                      >
+                        {loading ? "Отправка..." : "Отправить письмо"}
+                      </button>
+                      <button
+                        type="button"
+                        className="text-center text-xs text-zinc-500 transition hover:text-zinc-300"
+                        onClick={() => { setModalMode("login"); setError(""); }}
+                      >
+                        Вернуться ко входу
+                      </button>
+                    </form>
+                  )
                 )}
               </div>
             </div>

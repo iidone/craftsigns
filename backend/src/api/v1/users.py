@@ -14,7 +14,7 @@ import logging
 import os
 import uuid
 from datetime import date, datetime
-from src.schemas.users import CreateUser, UserResponse, LoginResponse
+from src.schemas.users import CreateUser, UserResponse, LoginResponse, ForgotPasswordRequest, ResetPasswordRequest
 from src.services.AuthService import (
     add_to_blacklist,
     pwd_context,
@@ -118,6 +118,69 @@ async def verify_email(token: str, session: SessionDep):
     except Exception as e:
         await session.rollback()
         raise HTTPException(status_code=500, detail=f"Verify error: {str(e)}")
+
+
+@router.post("/forgot-password", tags=["Пользователи"], summary="Запрос сброса пароля")
+async def forgot_password(data: ForgotPasswordRequest, session: SessionDep):
+    from src.utils.email_verification import generate_email_verify_token, default_expiry
+    from src.services.EmailService import send_email
+
+    try:
+        result = await session.execute(select(UsersModel).where(UsersModel.email == data.email))
+        user = result.scalar_one_or_none()
+
+        if user:
+            token = generate_email_verify_token()
+            expires_at = default_expiry(60)
+            user.password_reset_token = token
+            user.password_reset_expires_at = expires_at
+            await session.commit()
+
+            frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+            reset_url = f"{frontend_url}/reset-password?token={token}"
+
+            send_email(
+                "Сброс пароля CraftSigns",
+                f"Здравствуйте, {user.first_name}!\n\n"
+                f"Для создания нового пароля перейдите по ссылке:\n{reset_url}\n\n"
+                f"Ссылка действительна 60 минут.\n\n"
+                f"Если вы не запрашивали сброс пароля, просто проигнорируйте письмо.",
+                recipients=[user.email],
+            )
+
+    except Exception as e:
+        logging.warning("Forgot password error: %s", e)
+
+    return {"message": "Если такой email зарегистрирован, вам придёт письмо со ссылкой"}
+
+
+@router.post("/reset-password", tags=["Пользователи"], summary="Сброс пароля")
+async def reset_password(data: ResetPasswordRequest, session: SessionDep):
+    try:
+        result = await session.execute(
+            select(UsersModel).where(UsersModel.password_reset_token == data.token)
+        )
+        user = result.scalar_one_or_none()
+
+        if not user or not user.password_reset_token:
+            raise HTTPException(status_code=400, detail="Неверная или уже использованная ссылка")
+
+        expires_at = user.password_reset_expires_at
+        if expires_at and expires_at.replace(tzinfo=None) < datetime.utcnow():
+            raise HTTPException(status_code=400, detail="Срок действия ссылки истёк. Запросите новое письмо.")
+
+        user.password = get_password_hash(data.new_password)
+        user.password_reset_token = None
+        user.password_reset_expires_at = None
+        await session.commit()
+
+        return {"message": "Пароль успешно изменён"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        await session.rollback()
+        raise HTTPException(status_code=500, detail=f"Reset password error: {str(e)}")
 
 
 @router.post("/login", tags=["Пользователи"], summary="Авторизация", include_in_schema=False)

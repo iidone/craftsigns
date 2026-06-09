@@ -15,6 +15,7 @@ import {
   Pencil,
   Plus,
   Save,
+  Search,
   Settings,
   Trash2,
   Users,
@@ -134,6 +135,11 @@ export default function AdminPanel() {
     installation_date: "",
   });
 
+  const [orderUserQuery, setOrderUserQuery] = useState("");
+  const [orderUserOpen, setOrderUserOpen] = useState(false);
+  const [usersQuery, setUsersQuery] = useState("");
+  const [usersRoleFilter, setUsersRoleFilter] = useState<"all" | "common" | "moderator" | "admin">("all");
+
   const [contentForm, setContentForm] = useState({
     name: "",
     description: "",
@@ -153,6 +159,33 @@ export default function AdminPanel() {
   }>({ isOpen: false, title: "", text: "", confirmText: "Удалить", onConfirm: null });
 
   const authHeaders = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
+
+  const filteredOrderUsers = useMemo(() => {
+    if (!orderUserQuery.trim()) return users;
+    const q = orderUserQuery.toLowerCase();
+    return users.filter(
+      (u) =>
+        u.first_name.toLowerCase().includes(q) ||
+        u.last_name.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        (u.patronymic?.toLowerCase() ?? "").includes(q),
+    );
+  }, [users, orderUserQuery]);
+
+  const filteredUsers = useMemo(() => {
+    let result = users;
+    if (usersRoleFilter !== "all") result = result.filter((u) => u.role === usersRoleFilter);
+    if (!usersQuery.trim()) return result;
+    const q = usersQuery.toLowerCase();
+    return result.filter(
+      (u) =>
+        u.first_name.toLowerCase().includes(q) ||
+        u.last_name.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        (u.patronymic?.toLowerCase() ?? "").includes(q) ||
+        u.role.toLowerCase().includes(q),
+    );
+  }, [users, usersQuery, usersRoleFilter]);
 
   const notify = useCallback((text: string) => {
     setMessage(text);
@@ -274,6 +307,7 @@ export default function AdminPanel() {
       return;
     }
     setOrderForm({ user_id: "", service_id: "", title: "", description: "", status: "draft", stage: "Черновик", due_date: "", installation_date: "" });
+    setOrderUserQuery("");
     notify("Заказ создан");
     await loadData();
   };
@@ -512,12 +546,24 @@ export default function AdminPanel() {
             <Panel title="Создать заказ" note="Заказ можно оставить черновиком и закрыть после выполнения.">
               <form className="grid gap-3" onSubmit={createOrder}>
                 {isAdmin ? (
-                  <Select label="Клиент" required value={orderForm.user_id} onChange={(value) => setOrderForm((state) => ({ ...state, user_id: value }))}>
-                    <option value="">Выберите клиента</option>
-                    {users.map((client) => (
-                      <option key={client.id} value={client.id}>{client.last_name} {client.first_name} - {client.email}</option>
-                    ))}
-                  </Select>
+                  <UserSearchField
+                    label="Клиент"
+                    query={orderUserQuery}
+                    open={orderUserOpen}
+                    users={filteredOrderUsers}
+                    onQueryChange={(q) => {
+                      setOrderUserQuery(q);
+                      setOrderUserOpen(true);
+                      if (orderForm.user_id) setOrderForm((s) => ({ ...s, user_id: "" }));
+                    }}
+                    onSelect={(u) => {
+                      setOrderForm((s) => ({ ...s, user_id: String(u.id) }));
+                      setOrderUserQuery(`${u.last_name} ${u.first_name} — ${u.email}`);
+                      setOrderUserOpen(false);
+                    }}
+                    onFocus={() => setOrderUserOpen(true)}
+                    onBlur={() => window.setTimeout(() => setOrderUserOpen(false), 150)}
+                  />
                 ) : (
                   <Field label="ID клиента" required type="number" value={orderForm.user_id} onChange={(value) => setOrderForm((state) => ({ ...state, user_id: value }))} />
                 )}
@@ -668,7 +714,44 @@ export default function AdminPanel() {
         )}
 
         {!loading && activeTab === "users" && isAdmin && (
-          <Panel title="Реестр пользователей" note={`${users.length} аккаунтов`}>
+          <Panel title="Реестр пользователей" note={usersQuery.trim() ? `${filteredUsers.length} из ${users.length} аккаунтов` : `${users.length} аккаунтов`}>
+            <div className="relative mb-3">
+              <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" />
+              <input
+                className="h-11 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-10 pr-4 text-sm text-zinc-400 outline-none transition placeholder:text-zinc-600 focus:border-white/30"
+                placeholder="Поиск по имени, email..."
+                value={usersQuery}
+                onChange={(e) => setUsersQuery(e.target.value)}
+              />
+            </div>
+            <div className="mb-4 flex flex-wrap gap-2">
+              {(
+                [
+                  { value: "all", label: "Все" },
+                  { value: "common", label: "Клиенты" },
+                  { value: "moderator", label: "Модераторы" },
+                  { value: "admin", label: "Администраторы" },
+                ] as const
+              ).map((f) => (
+                <button
+                  key={f.value}
+                  type="button"
+                  className={`rounded-2xl border px-4 py-1.5 text-sm font-medium transition ${
+                    usersRoleFilter === f.value
+                      ? "border-white/20 bg-white text-black"
+                      : "border-white/10 bg-white/[0.04] text-zinc-400 hover:bg-white/[0.08] hover:text-white"
+                  }`}
+                  onClick={() => setUsersRoleFilter(f.value)}
+                >
+                  {f.label}
+                  {f.value !== "all" && (
+                    <span className="ml-1.5 text-xs opacity-60">
+                      {users.filter((u) => u.role === f.value).length}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-white/10">
                 <thead>
@@ -679,7 +762,12 @@ export default function AdminPanel() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/10">
-                  {users.map((item) => (
+                  {filteredUsers.length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-6 text-center text-sm text-zinc-500">Не найдено</td>
+                    </tr>
+                  )}
+                  {filteredUsers.map((item) => (
                     <tr key={item.id}>
                       <td className="px-4 py-3 text-sm">{item.last_name} {item.first_name}</td>
                       <td className="px-4 py-3 text-sm text-zinc-400">{item.email}</td>
@@ -975,6 +1063,63 @@ function ConfirmModal({
 
 function Badge({ text }: { text: string }) {
   return <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-zinc-300">{text}</span>;
+}
+
+function UserSearchField({
+  label,
+  onBlur,
+  onFocus,
+  onQueryChange,
+  onSelect,
+  open,
+  query,
+  users,
+}: {
+  label: string;
+  onBlur: () => void;
+  onFocus: () => void;
+  onQueryChange: (q: string) => void;
+  onSelect: (user: User) => void;
+  open: boolean;
+  query: string;
+  users: User[];
+}) {
+  return (
+    <div className="relative grid gap-2 text-sm text-zinc-300">
+      <span>{label}</span>
+      <div className="relative">
+        <Search size={15} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" />
+        <input
+          autoComplete="off"
+          className="h-11 w-full rounded-2xl border border-white/10 bg-white/[0.04] pl-10 pr-4 text-sm text-zinc-400 outline-none transition focus:border-white/30"
+          placeholder="Поиск по имени или email..."
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          onFocus={onFocus}
+          onBlur={onBlur}
+        />
+      </div>
+      {open && (
+        <div className="absolute top-[72px] left-0 right-0 z-20 max-h-48 overflow-y-auto rounded-2xl border border-white/10 bg-[#0b0b0c] shadow-lg">
+          {users.length === 0 ? (
+            <div className="px-4 py-3 text-sm text-zinc-500">Не найдено</div>
+          ) : (
+            users.map((u) => (
+              <button
+                key={u.id}
+                type="button"
+                className="w-full px-4 py-2.5 text-left text-sm text-zinc-300 transition hover:bg-white/[0.06]"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => onSelect(u)}
+              >
+                {u.last_name} {u.first_name} — {u.email}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function Th({ children }: { children: React.ReactNode }) {

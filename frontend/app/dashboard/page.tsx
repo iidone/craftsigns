@@ -312,7 +312,6 @@ export default function DashboardPage() {
                     <h3 className="font-semibold">{order.title}</h3>
                     <p className="mt-1 text-sm text-zinc-500">{order.description || "Без описания"}</p>
                     <p className="mt-3 text-sm text-zinc-400">Стадия: {order.stage}</p>
-                    <p className="mt-1 text-sm text-zinc-400">Выполнение: {formatDate(order.due_date)} | Монтаж: {formatDate(order.installation_date)}</p>
                   </div>
                   <Badge text={orderStatusLabels[order.status] || order.status} />
                 </div>

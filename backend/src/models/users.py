@@ -16,6 +16,9 @@ class UsersModel(Base):
     email_verify_token: Mapped[Optional[str]] = mapped_column(String(512), nullable=True, index=True)
     email_verify_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    password_reset_token: Mapped[Optional[str]] = mapped_column(String(512), nullable=True, index=True)
+    password_reset_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
     role: Mapped[str] = mapped_column(default="common", index=True)
     date_of_reg: Mapped[date] = mapped_column(Date, default=date.today)
     password: Mapped[str] = mapped_column()

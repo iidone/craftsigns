@@ -26,7 +26,7 @@ export const Welcome = () => (
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            {benefits.map((benefit) => (
+            {benefits.map((benefit: string) => (
               <div
                 key={benefit}
                 className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4 text-sm leading-6 text-zinc-300"

@@ -40,7 +40,7 @@ export default function RootLayout({
           <ScrollToTop />
           <ChatWidget />
           <footer className="border-t border-white/10 bg-[#050505] py-6">
-            <div className="app-shell text-sm text-zinc-600">CraftSigns</div>
+
           </footer>
         </AuthProvider>
       </body>
