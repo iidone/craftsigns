@@ -220,9 +220,9 @@ export default function AdminPanel() {
     oscillator.stop(context.currentTime + 0.35);
   }, []);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (silent = false) => {
     if (!token) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const requests = [
         fetch("/api/v1/admin/orders", { headers: authHeaders }),
@@ -244,12 +244,21 @@ export default function AdminPanel() {
       const nextOrders: Order[] = await ordersResponse.json();
       const nextTickets: Ticket[] = await ticketsResponse.json();
 
-      // список user_id, по которым нужны контакты
-      const userIds = Array.from(new Set(nextOrders.map((o) => o.user_id)));
+      // Парсим пользователей заранее — чтобы включить их ID в загрузку контактов
+      let nextUsers: User[] = [];
+      if (isAdmin && usersResponse?.ok) {
+        nextUsers = await usersResponse.json();
+      }
+
+      // Контакты грузим для клиентов из заказов + всех пользователей из реестра
+      const allContactUserIds = Array.from(new Set([
+        ...nextOrders.map((o) => o.user_id),
+        ...nextUsers.map((u) => u.id),
+      ]));
       const contactsByUserId: Record<number, ContactMethod[]> = {};
 
       await Promise.all(
-        userIds.map(async (userId) => {
+        allContactUserIds.map(async (userId) => {
           const res = await fetch(`/api/v1/admin/users/${userId}/contact-methods`, { headers: authHeaders });
           if (!res.ok) return;
           contactsByUserId[userId] = (await res.json()) as ContactMethod[];
@@ -265,23 +274,20 @@ export default function AdminPanel() {
       setOrders(nextOrders);
       setTickets(nextTickets);
       setUserContactsByUserId(contactsByUserId);
+      setUsers(nextUsers);
 
       setServices(await servicesResponse.json());
       setPortfolio(await portfolioResponse.json());
       const botData = await botResponse.json();
       setBlocks(botData.blocks || []);
 
-      if (isAdmin && usersResponse?.ok) {
-        setUsers(await usersResponse.json());
-      }
-
       if (isAdmin && telegramResponse?.ok) {
         setTelegramRecipients(await telegramResponse.json());
       }
     } catch (error) {
-      notify(getFriendlyFetchError(error, "Сервер не отвечает. Попробуйте позже."));
+      if (!silent) notify(getFriendlyFetchError(error, "Сервер не отвечает. Попробуйте позже."));
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [authHeaders, isAdmin, notify, playTicketSound, token]);
 
@@ -297,7 +303,7 @@ export default function AdminPanel() {
 
   useEffect(() => {
     if (!isReady || !token || !isStaff) return;
-    const interval = window.setInterval(() => void loadData(), 30000);
+    const interval = window.setInterval(() => void loadData(true), 30000);
     return () => window.clearInterval(interval);
   }, [isReady, isStaff, loadData, token]);
 
@@ -322,7 +328,7 @@ export default function AdminPanel() {
     setOrderForm({ user_id: "", service_id: "", title: "", description: "", status: "draft", stage: "Черновик", price: "", due_date: "", installation_date: "" });
     setOrderUserQuery("");
     notify("Заказ создан");
-    await loadData();
+    await loadData(true);
   };
 
   const updateOrderPrice = async (order: Order, priceStr: string) => {
@@ -338,7 +344,7 @@ export default function AdminPanel() {
     });
     if (response.ok) {
       notify("Стоимость обновлена");
-      await loadData();
+      await loadData(true);
       return;
     }
     notify("Не удалось обновить стоимость. Попробуйте позже.", "error");
@@ -352,7 +358,7 @@ export default function AdminPanel() {
     });
     if (response.ok) {
       notify("Статус заказа обновлён");
-      await loadData();
+      await loadData(true);
       return;
     }
     notify("Не удалось обновить статус заказа. Попробуйте позже.", "error");
@@ -362,7 +368,7 @@ export default function AdminPanel() {
     const response = await fetch(`/api/v1/admin/tickets/${ticketId}/close`, { method: "POST", headers: authHeaders });
     if (response.ok) {
       notify("Заявка закрыта");
-      await loadData();
+      await loadData(true);
       return;
     }
     notify("Не удалось закрыть заявку. Попробуйте позже.", "error");
@@ -389,14 +395,14 @@ export default function AdminPanel() {
 
     setTelegramForm("");
     notify("Получатель Telegram добавлен");
-    await loadData();
+    await loadData(true);
   };
 
   const deleteTelegramRecipient = async (id: number) => {
     const response = await fetch(`/api/v1/admin/telegram-recipients/${id}`, { method: "DELETE", headers: authHeaders });
     if (response.ok) {
       notify("Получатель Telegram удалён");
-      await loadData();
+      await loadData(true);
       return;
     }
     notify("Не удалось удалить получателя Telegram. Попробуйте позже.", "error");
@@ -410,7 +416,7 @@ export default function AdminPanel() {
     });
     if (response.ok) {
       notify("Роль пользователя обновлена");
-      await loadData();
+      await loadData(true);
       return;
     }
     notify("Не удалось изменить роль пользователя. Попробуйте позже.", "error");
@@ -425,7 +431,7 @@ export default function AdminPanel() {
     if (response.ok) {
       setBlocks(nextBlocks);
       notify(successText);
-      await loadData();
+      await loadData(true);
       return true;
     }
     notify("Не удалось сохранить настройки бота", "error");
@@ -475,6 +481,10 @@ export default function AdminPanel() {
 
   const createContent = async (type: "services" | "portfolio", event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!contentForm.photoFile) {
+      notify("Добавьте фото — оно обязательно.", "error");
+      return;
+    }
     const data = new FormData();
     data.append("name", contentForm.name);
     if (contentForm.description) data.append("description", contentForm.description);
@@ -490,7 +500,7 @@ export default function AdminPanel() {
     if (response.ok) {
       setContentForm({ name: "", description: "", price: "", photoFile: null });
       notify(type === "services" ? "Услуга добавлена" : "Работа добавлена");
-      await loadData();
+      await loadData(true);
       return;
     }
     notify(type === "services" ? "Не удалось добавить услугу. Проверьте поля формы." : "Не удалось добавить работу. Проверьте поля формы.");
@@ -500,7 +510,7 @@ export default function AdminPanel() {
     const response = await fetch(`/api/v1/portfolio_and_services/${type}/${id}`, { method: "DELETE", headers: authHeaders });
     if (response.ok) {
       notify(type === "services" ? "Услуга удалена" : "Работа удалена");
-      await loadData();
+      await loadData(true);
       return;
     }
     notify(type === "services" ? "Не удалось удалить услугу. Попробуйте позже." : "Не удалось удалить работу. Попробуйте позже.");
@@ -816,28 +826,43 @@ export default function AdminPanel() {
                   <tr>
                     <Th>Пользователь</Th>
                     <Th>Email</Th>
+                    <Th>Способы связи</Th>
                     <Th>Роль</Th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/10">
                   {filteredUsers.length === 0 && (
                     <tr>
-                      <td colSpan={3} className="px-4 py-6 text-center text-sm text-zinc-500">Не найдено</td>
+                      <td colSpan={4} className="px-4 py-6 text-center text-sm text-zinc-500">Не найдено</td>
                     </tr>
                   )}
-                  {filteredUsers.map((item) => (
-                    <tr key={item.id}>
-                      <td className="px-4 py-3 text-sm">{item.last_name} {item.first_name}</td>
-                      <td className="px-4 py-3 text-sm text-zinc-400">{item.email}</td>
-                      <td className="px-4 py-3">
-                        <select className="h-10 rounded-2xl border border-white/10 bg-[#050505] px-3 text-sm" value={item.role} onChange={(event) => void updateRole(item.id, event.target.value)}>
-                          <option value="common">Клиент</option>
-                          <option value="moderator">Модератор</option>
-                          <option value="admin">Администратор</option>
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredUsers.map((item) => {
+                    const contacts = userContactsByUserId[item.id] ?? [];
+                    return (
+                      <tr key={item.id}>
+                        <td className="px-4 py-3 text-sm">{item.last_name} {item.first_name}</td>
+                        <td className="px-4 py-3 text-sm text-zinc-400">{item.email}</td>
+                        <td className="px-4 py-3">
+                          {contacts.length > 0 ? (
+                            <div className="grid gap-0.5">
+                              {contacts.map((c) => (
+                                <span key={c.id} className="select-text text-xs text-zinc-300">{c.type}: {c.value}</span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-zinc-600">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <select className="h-10 rounded-2xl border border-white/10 bg-[#050505] px-3 text-sm" value={item.role} onChange={(event) => void updateRole(item.id, event.target.value)}>
+                            <option value="common">Клиент</option>
+                            <option value="moderator">Модератор</option>
+                            <option value="admin">Администратор</option>
+                          </select>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -962,10 +987,22 @@ function ContentEditor({
           <Field label="Название" required value={form.name} onChange={(value) => setForm((state) => ({ ...state, name: value }))} />
           <Textarea label="Описание" value={form.description} onChange={(value) => setForm((state) => ({ ...state, description: value }))} />
           {withPrice && <Field label="Цена" value={form.price} onChange={(value) => setForm((state) => ({ ...state, price: value }))} />}
-          <label className="grid gap-2 text-sm text-zinc-300">
-            <span>Фото</span>
-            <input className="text-sm text-zinc-400" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setForm((state) => ({ ...state, photoFile: event.target.files?.[0] ?? null }))} />
-          </label>
+          <div className="grid gap-2 text-sm text-zinc-300">
+            <span>Фото <span className="text-red-400">*</span></span>
+            <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-dashed border-white/20 bg-white/[0.03] px-4 py-3 transition hover:border-white/40 hover:bg-white/[0.06]">
+              <ImagePlus size={16} className="shrink-0 text-zinc-400" />
+              <span className={`min-w-0 truncate text-sm ${form.photoFile ? "text-white" : "text-zinc-500"}`}>
+                {form.photoFile ? form.photoFile.name : "Нажмите, чтобы выбрать фото"}
+              </span>
+              <input
+                className="sr-only"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                required
+                onChange={(event) => setForm((state) => ({ ...state, photoFile: event.target.files?.[0] ?? null }))}
+              />
+            </label>
+          </div>
           <PrimaryButton icon={<Plus size={17} />} text="Добавить" />
         </form>
       </Panel>
