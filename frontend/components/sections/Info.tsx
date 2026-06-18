@@ -5,7 +5,7 @@ import { Building2, MapPinned, MessageSquareText, Truck } from "lucide-react";
 
 const items = [
   { href: "#contacts", icon: MessageSquareText, title: "Контакты", text: "Телефон, почта и форма заявки." },
-  { href: "#delivery", icon: Truck, title: "Доставка", text: "Отправка готовых изделий по России." },
+  { href: "#delivery", icon: Truck, title: "Доставка", text: "Отправка готовых изделий по Москве и Московской области." },
   { href: "#welcome", icon: MapPinned, title: "Подход", text: "Производство, монтаж и сопровождение." },
   { href: "#ie", icon: Building2, title: "Реквизиты", text: "Информация об индивидуальном предпринимателе." },
 ];

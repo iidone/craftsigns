@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Map, Placemark, YMaps } from "@pbe/react-yandex-maps";
-import { Mail, MapPin, Phone, Send } from "lucide-react";
+import { Check, Copy, Mail, MapPin, Phone, Send } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { formatPhone, getFriendlyError, isAbortError } from "@/utils/forms";
+import { formatPhone, getFriendlyError, isAbortError, isPhoneComplete } from "@/utils/forms";
 
 interface ContactMethod {
   id: number;
@@ -17,9 +17,9 @@ interface ContactMethod {
 }
 
 const contacts = [
-  { icon: Phone, title: "Телефон", value: "+7 (900) 123-45-67", href: "tel:+79001234567" },
-  { icon: Mail, title: "Email", value: "craftsigns@yandex.ru", href: "mailto:craftsigns@yandex.ru" },
-  { icon: MapPin, title: "Адрес", value: "г. Москва, ул. Остаповский пр-д, д. 13с2" },
+  { icon: Phone, title: "Телефон", value: "+7 (900) 123-45-67", href: "tel:+79001234567", action: "call" as const },
+  { icon: Mail, title: "Email", value: "craftsigns@yandex.ru", href: "mailto:craftsigns@yandex.ru", action: "copy-or-mail" as const },
+  { icon: MapPin, title: "Адрес", value: "г. Москва, ул. Остаповский пр-д, д. 13с2", action: "copy" as const },
 ];
 
 export const Contacts = () => {
@@ -27,6 +27,23 @@ export const Contacts = () => {
   const [form, setForm] = useState({ name: "", phone: "", email: "", description: "" });
   const [lockedContacts, setLockedContacts] = useState({ phone: false, email: false });
   const [status, setStatus] = useState("");
+  const [statusType, setStatusType] = useState<"success" | "error">("error");
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const showStatus = (text: string, type: "success" | "error" = "error") => {
+    setStatus(text);
+    setStatusType(type);
+  };
+
+  const copyToClipboard = async (text: string, key: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(key);
+      window.setTimeout(() => setCopied(null), 2000);
+    } catch {
+      // fallback — select text
+    }
+  };
   const defaultCoords: [number, number] = [55.718476, 37.717276];
   const fullName = `${user?.first_name ?? ""} ${user?.last_name ?? ""} ${user?.patronymic ?? ""}`.trim();
 
@@ -87,6 +104,28 @@ export const Contacts = () => {
     event.preventDefault();
     setStatus("");
 
+    const nameTrimmed = form.name.trim();
+    if (nameTrimmed.length < 2 || !/[а-яёА-ЯЁa-zA-Z]/.test(nameTrimmed)) {
+      showStatus("Введите корректное имя (минимум 2 символа, только буквы).");
+      return;
+    }
+
+    if (!isPhoneComplete(form.phone)) {
+      showStatus("Введите полный номер телефона: +7 (XXX) XXX-XX-XX.");
+      return;
+    }
+
+    const emailTrimmed = form.email.trim();
+    if (!emailTrimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed)) {
+      showStatus("Введите корректный адрес электронной почты.");
+      return;
+    }
+
+    if (!form.description.trim()) {
+      showStatus("Опишите ваш проект.");
+      return;
+    }
+
     try {
       const response = await fetch(isAuthorized ? "/api/v1/dashboard/tickets" : "/api/v1/dashboard/public-tickets", {
         method: "POST",
@@ -104,15 +143,15 @@ export const Contacts = () => {
           email: isEmailLocked ? state.email : "",
           description: "",
         }));
-        setStatus("Заявка отправлена. Мы скоро свяжемся с вами.");
+        showStatus("Заявка отправлена. Мы скоро свяжемся с вами.", "success");
         return;
       }
 
       const data = await response.json().catch(() => null);
-      setStatus(getFriendlyError(data, "Не удалось отправить заявку. Попробуйте позже."));
+      showStatus(getFriendlyError(data, "Не удалось отправить заявку. Попробуйте позже."));
     } catch (error) {
       if (isAbortError(error)) return;
-      setStatus("Не удалось отправить заявку. Попробуйте позже.");
+      showStatus("Не удалось отправить заявку. Попробуйте позже.");
     }
   };
 
@@ -130,18 +169,40 @@ export const Contacts = () => {
             </p>
 
             <div className="mt-8 grid gap-3">
-              {contacts.map(({ icon: Icon, title, value, href }) => {
+              {contacts.map(({ icon: Icon, title, value, href, action }) => {
+                const isCopyable = action === "copy" || action === "copy-or-mail";
+                const isCopied = copied === title;
+
                 const content = (
                   <div className="flex items-center gap-4 rounded-[24px] border border-white/10 bg-white/[0.03] p-4 transition hover:bg-white/[0.06]">
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white text-black">
                       <Icon size={20} />
                     </div>
-                    <div>
+                    <div className="min-w-0 flex-1 select-text">
                       <p className="text-xs uppercase tracking-[0.24em] text-zinc-600">{title}</p>
                       <p className="mt-1 text-sm font-medium text-white">{value}</p>
                     </div>
+                    {isCopyable && (
+                      <div className="shrink-0 text-zinc-500">
+                        {isCopied ? <Check size={16} className="text-emerald-400" /> : <Copy size={16} />}
+                      </div>
+                    )}
                   </div>
                 );
+
+                if (isCopyable) {
+                  return (
+                    <button
+                      key={title}
+                      type="button"
+                      className="w-full text-left cursor-pointer"
+                      onClick={() => void copyToClipboard(value, title)}
+                      title={action === "copy-or-mail" ? "Нажмите, чтобы скопировать email" : "Нажмите, чтобы скопировать адрес"}
+                    >
+                      {content}
+                    </button>
+                  );
+                }
 
                 return href ? (
                   <a key={title} href={href}>{content}</a>
@@ -168,6 +229,7 @@ export const Contacts = () => {
               <input
                 type="tel"
                 placeholder="+7 (___) ___-__-__"
+                required
                 value={form.phone}
                 onChange={(event) => setForm((state) => ({ ...state, phone: formatPhone(event.target.value) }))}
                 disabled={isPhoneLocked}
@@ -177,6 +239,7 @@ export const Contacts = () => {
               <input
                 type="email"
                 placeholder="Email"
+                required
                 value={form.email}
                 onChange={(event) => setForm((state) => ({ ...state, email: event.target.value }))}
                 disabled={isEmailLocked}
@@ -185,6 +248,7 @@ export const Contacts = () => {
               />
               <textarea
                 placeholder="Расскажите о проекте"
+                required
                 rows={5}
                 value={form.description}
                 onChange={(event) => setForm((state) => ({ ...state, description: event.target.value }))}
@@ -197,7 +261,15 @@ export const Contacts = () => {
                 <Send size={17} />
                 Отправить заявку
               </button>
-              {status && <p className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-zinc-300">{status}</p>}
+              {status && (
+                <p className={`rounded-2xl border px-4 py-3 text-sm ${
+                  statusType === "success"
+                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+                    : "border-red-500/30 bg-red-500/10 text-red-200"
+                }`}>
+                  {status}
+                </p>
+              )}
             </form>
           </div>
         </div>

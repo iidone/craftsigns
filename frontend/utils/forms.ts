@@ -1,3 +1,16 @@
+export const formatTelegram = (value: string): string => {
+  const cleaned = value.replace(/[^@a-zA-Z0-9_]/g, "");
+  if (!cleaned || cleaned === "@") return "@";
+  const withAt = cleaned.startsWith("@") ? cleaned : `@${cleaned}`;
+  const username = withAt.slice(1).replace(/[^a-zA-Z0-9_]/g, "").slice(0, 32);
+  return `@${username}`;
+};
+
+export const isPhoneComplete = (value: string): boolean => {
+  const digits = value.replace(/\D/g, "");
+  return digits.length === 11;
+};
+
 export const formatPhone = (value: string) => {
   const digits = value.replace(/\D/g, "");
   if (!digits) return "";

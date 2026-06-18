@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { CheckCircle2, MessageSquarePlus, Phone, Plus, Trash2, UserRound, X } from "lucide-react";
-import { formatPhone, getFriendlyError, getFriendlyFetchError } from "@/utils/forms";
+import { CheckCircle2, ChevronDown, MessageSquarePlus, Phone, Plus, Trash2, UserRound, X } from "lucide-react";
+import { formatPhone, formatTelegram, getFriendlyError, getFriendlyFetchError, isPhoneComplete } from "@/utils/forms";
 
 interface Order {
   id: number;
@@ -12,6 +12,7 @@ interface Order {
   description: string | null;
   status: string;
   stage: string;
+  price: string | null;
   due_date: string | null;
   installation_date: string | null;
   created: string | null;
@@ -55,8 +56,10 @@ const availableContactTypes = [
   { value: "phone", label: "Телефон" },
   { value: "telegram", label: "Telegram" },
   { value: "whatsapp", label: "WhatsApp" },
-  { value: "max", label: "Макс"}
+  { value: "max", label: "Макс" },
 ];
+
+const PHONE_TYPES = new Set(["phone", "whatsapp", "max"]);
 
 const typeLabels: Record<string, string> = {
   phone: "Телефон",
@@ -78,6 +81,18 @@ export default function DashboardPage() {
   const [contacts, setContacts] = useState<ContactMethod[]>([]);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">("success");
+  const [contactError, setContactError] = useState("");
+  const [ticketFormMsg, setTicketFormMsg] = useState("");
+  const [ticketFormMsgType, setTicketFormMsgType] = useState<"success" | "error">("error");
+  const [ordersShown, setOrdersShown] = useState(5);
+  const [ticketsShown, setTicketsShown] = useState(5);
+  const PAGE_SIZE = 5;
+
+  const showTicketFormMsg = (text: string, type: "success" | "error" = "error") => {
+    setTicketFormMsg(text);
+    setTicketFormMsgType(type);
+    window.setTimeout(() => setTicketFormMsg(""), 5000);
+  };
   
   const [deleteModal, setDeleteModal] = useState<{
     isOpen: boolean;
@@ -172,6 +187,17 @@ export default function DashboardPage() {
 
   const createTicket = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (!isPhoneComplete(ticketForm.phone)) {
+      showTicketFormMsg("Введите полный номер телефона: +7 (XXX) XXX-XX-XX.");
+      return;
+    }
+
+    if (!ticketForm.description.trim()) {
+      showTicketFormMsg("Опишите ваш запрос.");
+      return;
+    }
+
     const response = await fetch("/api/v1/dashboard/tickets", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...headers },
@@ -184,16 +210,26 @@ export default function DashboardPage() {
         email: isEmailLocked ? prev.email : "",
         description: "",
       }));
-      showMessage("✅ Заявка отправлена");
+      showTicketFormMsg("Заявка отправлена. Ожидайте ответа.", "success");
       await loadData();
     } else {
-
-      showMessage("❌ Не удалось отправить заявку", "error");
+      showTicketFormMsg("Не удалось отправить заявку. Попробуйте позже.");
     }
   };
 
   const createContact = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setContactError("");
+
+    if (PHONE_TYPES.has(contactForm.type) && !isPhoneComplete(contactForm.value)) {
+      setContactError("Введите полный номер телефона в формате +7 (XXX) XXX-XX-XX");
+      return;
+    }
+    if (contactForm.type === "telegram" && (contactForm.value.length < 6 || !contactForm.value.startsWith("@"))) {
+      setContactError("Telegram должен начинаться с @ и содержать минимум 5 символов");
+      return;
+    }
+
     const response = await fetch("/api/v1/dashboard/contact-methods", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...headers },
@@ -305,18 +341,35 @@ export default function DashboardPage() {
           <h2 className="text-xl font-semibold">Заказы</h2>
           <div className="mt-5 grid gap-3">
             {orders.length === 0 && <Empty text="Сформированных заказов пока нет." />}
-            {orders.map((order) => (
+            {orders.slice(0, ordersShown).map((order) => (
               <article key={order.id} className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div>
                     <h3 className="font-semibold">{order.title}</h3>
                     <p className="mt-1 text-sm text-zinc-500">{order.description || "Без описания"}</p>
                     <p className="mt-3 text-sm text-zinc-400">Стадия: {order.stage}</p>
+                    {order.price && (
+                      <p className="mt-1 text-sm font-semibold text-white">
+                        {Number(order.price).toLocaleString("ru-RU")} ₽
+                      </p>
+                    )}
+                    {order.due_date && <p className="mt-1 text-sm text-zinc-500">Срок выполнения: {formatDate(order.due_date)}</p>}
+                    {order.installation_date && <p className="mt-1 text-sm text-zinc-500">Дата монтажа: {formatDate(order.installation_date)}</p>}
                   </div>
                   <Badge text={orderStatusLabels[order.status] || order.status} />
                 </div>
               </article>
             ))}
+            {orders.length > ordersShown && (
+              <button
+                type="button"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-medium text-zinc-300 transition hover:bg-white/[0.08]"
+                onClick={() => setOrdersShown((n) => n + PAGE_SIZE)}
+              >
+                <ChevronDown size={16} />
+                Показать ещё ({orders.length - ordersShown})
+              </button>
+            )}
           </div>
         </section>
 
@@ -351,13 +404,22 @@ export default function DashboardPage() {
 
               <Textarea label="Описание" value={ticketForm.description} onChange={(value) => setTicketForm((state) => ({ ...state, description: value }))} />
               <PrimaryButton text="Отправить заявку" />
+              {ticketFormMsg && (
+                <p className={`rounded-2xl border px-4 py-3 text-sm ${
+                  ticketFormMsgType === "success"
+                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+                    : "border-red-500/30 bg-red-500/10 text-red-200"
+                }`}>
+                  {ticketFormMsg}
+                </p>
+              )}
             </form>
           </Panel>
 
           <Panel title="Мои заявки" icon={<CheckCircle2 size={20} />}>
             <div className="grid gap-3">
               {tickets.length === 0 && <Empty text="Заявок пока нет." />}
-              {tickets.map((ticket) => (
+              {tickets.slice(0, ticketsShown).map((ticket) => (
                 <article key={ticket.id} className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -369,6 +431,16 @@ export default function DashboardPage() {
                   <p className="mt-3 text-sm text-zinc-400">{formatDateTime(ticket.created_at)}</p>
                 </article>
               ))}
+              {tickets.length > ticketsShown && (
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-medium text-zinc-300 transition hover:bg-white/[0.08]"
+                  onClick={() => setTicketsShown((n) => n + PAGE_SIZE)}
+                >
+                  <ChevronDown size={16} />
+                  Показать ещё ({tickets.length - ticketsShown})
+                </button>
+              )}
             </div>
           </Panel>
         </section>
@@ -378,10 +450,13 @@ export default function DashboardPage() {
             <form className="grid gap-3" onSubmit={createContact}>
               <label className="grid gap-2 text-sm text-zinc-300">
                 <span>Тип</span>
-                <select 
-                  className="h-11 rounded-2xl border border-white/10 bg-[#050505] px-4 text-sm outline-none" 
-                  value={contactForm.type} 
-                  onChange={(event) => setContactForm((state) => ({ ...state, type: event.target.value }))}
+                <select
+                  className="h-11 rounded-2xl border border-white/10 bg-[#050505] px-4 text-sm outline-none"
+                  value={contactForm.type}
+                  onChange={(event) => {
+                    setContactForm((state) => ({ ...state, type: event.target.value, value: "" }));
+                    setContactError("");
+                  }}
                 >
                   {availableTypes.length > 0 ? (
                     availableTypes.map((type) => (
@@ -397,15 +472,30 @@ export default function DashboardPage() {
               <Field
                 label="Значение"
                 required
-                type={contactForm.type === "phone" || contactForm.type === "whatsapp" ? "tel" : "text"}
+                type={PHONE_TYPES.has(contactForm.type) ? "tel" : "text"}
+                placeholder={
+                  PHONE_TYPES.has(contactForm.type)
+                    ? "+7 (___) ___-__-__"
+                    : contactForm.type === "telegram"
+                    ? "@username"
+                    : ""
+                }
                 value={contactForm.value}
                 onChange={(value) =>
                   setContactForm((state) => ({
                     ...state,
-                    value: state.type === "phone" || state.type === "whatsapp" ? formatPhone(value) : value,
+                    value:
+                      PHONE_TYPES.has(state.type)
+                        ? formatPhone(value)
+                        : state.type === "telegram"
+                        ? formatTelegram(value)
+                        : value,
                   }))
                 }
               />
+              {contactError && (
+                <p className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">{contactError}</p>
+              )}
               <Field label="Комментарий" value={contactForm.comment} onChange={(value) => setContactForm((state) => ({ ...state, comment: value }))} />
               <PrimaryButton text="Добавить" disabled={availableTypes.length === 0} />
             </form>
@@ -501,6 +591,7 @@ function Panel({ children, icon, title }: { children: React.ReactNode; icon: Rea
 function Field({
   label,
   onChange,
+  placeholder,
   required,
   type = "text",
   value,
@@ -509,6 +600,7 @@ function Field({
 }: {
   label: string;
   onChange: (value: string) => void;
+  placeholder?: string;
   required?: boolean;
   type?: string;
   value: string;
@@ -520,10 +612,11 @@ function Field({
       <span>{label}</span>
       <input
         className={
-          "h-11 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm outline-none focus:border-white/30 transition" +
+          "h-11 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm outline-none focus:border-white/30 transition placeholder:text-zinc-600" +
           (disabled || readOnly ? " cursor-not-allowed text-zinc-400" : " text-zinc-400")
         }
         onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
         required={required}
         type={type}
         value={value}

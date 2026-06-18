@@ -8,6 +8,7 @@ import {
   Bell,
   BriefcaseBusiness,
   Check,
+  ChevronDown,
   FileText,
   ImagePlus,
   MessageSquare,
@@ -42,12 +43,12 @@ interface ContactMethod {
 interface Order {
   id: number;
   user_id: number;
-
   service_id: number | null;
   title: string;
   description: string | null;
   status: string;
   stage: string;
+  price: string | null;
   due_date: string | null;
   installation_date: string | null;
   created: string | null;
@@ -121,8 +122,17 @@ export default function AdminPanel() {
   const [portfolio, setPortfolio] = useState<ContentItem[]>([]);
   const [blocks, setBlocks] = useState<BotBlock[]>([]);
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"success" | "error">("success");
   const [loading, setLoading] = useState(true);
   const previousOpenTickets = useRef<number | null>(null);
+
+  const todayStr = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
+  const ADMIN_PAGE_SIZE = 5;
+  const [ordersShown, setOrdersShown] = useState(ADMIN_PAGE_SIZE);
+  const [ticketsShown, setTicketsShown] = useState(ADMIN_PAGE_SIZE);
 
   const [orderForm, setOrderForm] = useState({
     user_id: "",
@@ -131,6 +141,7 @@ export default function AdminPanel() {
     description: "",
     status: "draft",
     stage: "Черновик",
+    price: "",
     due_date: "",
     installation_date: "",
   });
@@ -187,9 +198,10 @@ export default function AdminPanel() {
     );
   }, [users, usersQuery, usersRoleFilter]);
 
-  const notify = useCallback((text: string) => {
+  const notify = useCallback((text: string, type: "success" | "error" = "success") => {
     setMessage(text);
-    window.setTimeout(() => setMessage(""), 3000);
+    setMessageType(type);
+    window.setTimeout(() => setMessage(""), 4000);
   }, []);
 
   const playTicketSound = useCallback(() => {
@@ -298,18 +310,38 @@ export default function AdminPanel() {
         ...orderForm,
         user_id: Number(orderForm.user_id),
         service_id: orderForm.service_id ? Number(orderForm.service_id) : null,
+        price: orderForm.price ? Number(orderForm.price) : null,
         due_date: orderForm.due_date || null,
         installation_date: orderForm.installation_date || null,
       }),
     });
     if (!response.ok) {
-      notify("Не удалось создать заказ. Проверьте данные и попробуйте ещё раз.");
+      notify("Не удалось создать заказ. Проверьте данные и попробуйте ещё раз.", "error");
       return;
     }
-    setOrderForm({ user_id: "", service_id: "", title: "", description: "", status: "draft", stage: "Черновик", due_date: "", installation_date: "" });
+    setOrderForm({ user_id: "", service_id: "", title: "", description: "", status: "draft", stage: "Черновик", price: "", due_date: "", installation_date: "" });
     setOrderUserQuery("");
     notify("Заказ создан");
     await loadData();
+  };
+
+  const updateOrderPrice = async (order: Order, priceStr: string) => {
+    const price = priceStr.trim() === "" ? null : Number(priceStr);
+    if (priceStr.trim() !== "" && (Number.isNaN(price) || (price !== null && price < 0))) {
+      notify("Стоимость должна быть положительным числом.");
+      return;
+    }
+    const response = await fetch(`/api/v1/admin/orders/${order.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...authHeaders },
+      body: JSON.stringify({ price }),
+    });
+    if (response.ok) {
+      notify("Стоимость обновлена");
+      await loadData();
+      return;
+    }
+    notify("Не удалось обновить стоимость. Попробуйте позже.", "error");
   };
 
   const updateOrderStatus = async (order: Order, status: string) => {
@@ -323,7 +355,7 @@ export default function AdminPanel() {
       await loadData();
       return;
     }
-    notify("Не удалось обновить статус заказа. Попробуйте позже.");
+    notify("Не удалось обновить статус заказа. Попробуйте позже.", "error");
   };
 
   const closeTicket = async (ticketId: number) => {
@@ -333,7 +365,7 @@ export default function AdminPanel() {
       await loadData();
       return;
     }
-    notify("Не удалось закрыть заявку. Попробуйте позже.");
+    notify("Не удалось закрыть заявку. Попробуйте позже.", "error");
   };
 
   const addTelegramRecipient = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -351,7 +383,7 @@ export default function AdminPanel() {
     });
 
     if (!response.ok) {
-      notify("Не удалось добавить получателя");
+      notify("Не удалось добавить получателя", "error");
       return;
     }
 
@@ -367,7 +399,7 @@ export default function AdminPanel() {
       await loadData();
       return;
     }
-    notify("Не удалось удалить получателя Telegram. Попробуйте позже.");
+    notify("Не удалось удалить получателя Telegram. Попробуйте позже.", "error");
   };
 
   const updateRole = async (userId: number, role: string) => {
@@ -381,7 +413,7 @@ export default function AdminPanel() {
       await loadData();
       return;
     }
-    notify("Не удалось изменить роль пользователя. Попробуйте позже.");
+    notify("Не удалось изменить роль пользователя. Попробуйте позже.", "error");
   };
 
   const persistBotBlocks = async (nextBlocks: BotBlock[], successText = "Настройки бота сохранены") => {
@@ -396,7 +428,7 @@ export default function AdminPanel() {
       await loadData();
       return true;
     }
-    notify("Не удалось сохранить настройки бота");
+    notify("Не удалось сохранить настройки бота", "error");
     return false;
   };
 
@@ -538,7 +570,7 @@ export default function AdminPanel() {
           </div>
         </section>
 
-        {message && <Status text={message} />}
+        {message && activeTab !== "orders" && <Status text={message} type={messageType} />}
         {loading && <div className="section-panel p-8 text-center text-sm text-zinc-500">Загрузка...</div>}
 
         {!loading && activeTab === "orders" && (
@@ -572,19 +604,21 @@ export default function AdminPanel() {
                   {services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
                 </Select>
                 <Field label="Название" required value={orderForm.title} onChange={(value) => setOrderForm((state) => ({ ...state, title: value }))} />
-                <Textarea label="Описание" value={orderForm.description} onChange={(value) => setOrderForm((state) => ({ ...state, description: value }))} />
-                <Select label="Статус" value={orderForm.status} onChange={(value) => setOrderForm((state) => ({ ...state, status: value, stage: orderStatuses.find((item) => item.value === value)?.label || state.stage }))}>
+                <Textarea label="Описание" required value={orderForm.description} onChange={(value) => setOrderForm((state) => ({ ...state, description: value }))} />
+                <Select label="Статус" required value={orderForm.status} onChange={(value) => setOrderForm((state) => ({ ...state, status: value, stage: orderStatuses.find((item) => item.value === value)?.label || state.stage }))}>
                   {orderStatuses.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
                 </Select>
-                <Field label="Стадия" value={orderForm.stage} onChange={(value) => setOrderForm((state) => ({ ...state, stage: value }))} />
-                <Field label="Дата выполнения" type="date" value={orderForm.due_date} onChange={(value) => setOrderForm((state) => ({ ...state, due_date: value }))} />
-                <Field label="Дата монтажа" type="date" value={orderForm.installation_date} onChange={(value) => setOrderForm((state) => ({ ...state, installation_date: value }))} />
+                <Field label="Стадия" required value={orderForm.stage} onChange={(value) => setOrderForm((state) => ({ ...state, stage: value }))} />
+                <Field label="Стоимость (₽)" type="number" value={orderForm.price} onChange={(value) => setOrderForm((state) => ({ ...state, price: value }))} />
+                <Field label="Дата выполнения" required type="date" min={todayStr} value={orderForm.due_date} onChange={(value) => setOrderForm((state) => ({ ...state, due_date: value }))} />
+                <Field label="Дата монтажа" type="date" min={todayStr} value={orderForm.installation_date} onChange={(value) => setOrderForm((state) => ({ ...state, installation_date: value }))} />
                 <PrimaryButton icon={<Plus size={17} />} text="Создать заказ" />
+                {message && activeTab === "orders" && <Status text={message} type={messageType} />}
               </form>
             </Panel>
             <Panel title="Список заказов" note={`${orders.length} записей`}>
               <div className="grid gap-3">
-                {orders.map((order) => {
+                {orders.slice(0, ordersShown).map((order) => {
                   const client = users.find((u) => u.id === order.user_id);
                   const contacts = userContactsByUserId[order.user_id] || [];
                   return (
@@ -600,7 +634,7 @@ export default function AdminPanel() {
                           </p>
 
                           <p className="mt-2 text-sm text-zinc-400">
-                            Выполнение: {formatDate(order.due_date)} | Монтаж: {formatDate(order.installation_date)}
+                            Дата выполнения: {formatDate(order.due_date)} | Дата монтажа: {formatDate(order.installation_date)}
                           </p>
 
                           {contacts.length > 0 ? (
@@ -616,7 +650,7 @@ export default function AdminPanel() {
                           )}
                         </div>
 
-                        <div className="flex gap-2">
+                        <div className="flex flex-col gap-2">
                           <select
                             className="h-10 rounded-2xl border border-white/10 bg-[#050505] px-3 text-sm"
                             value={order.status}
@@ -628,11 +662,25 @@ export default function AdminPanel() {
                               </option>
                             ))}
                           </select>
+                          <PriceInput
+                            value={order.price ?? ""}
+                            onSave={(val) => void updateOrderPrice(order, val)}
+                          />
                         </div>
                       </div>
                     </article>
                   );
                 })}
+                {orders.length > ordersShown && (
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-medium text-zinc-300 transition hover:bg-white/[0.08]"
+                    onClick={() => setOrdersShown((n) => n + ADMIN_PAGE_SIZE)}
+                  >
+                    <ChevronDown size={16} />
+                    Показать ещё ({orders.length - ordersShown})
+                  </button>
+                )}
               </div>
             </Panel>
           </section>
@@ -687,7 +735,7 @@ export default function AdminPanel() {
               </div>
             )}
             <div className="grid gap-3 lg:grid-cols-2">
-              {tickets.map((ticket) => (
+              {tickets.slice(0, ticketsShown).map((ticket) => (
                 <article key={ticket.id} className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -710,6 +758,16 @@ export default function AdminPanel() {
                 </article>
               ))}
             </div>
+            {tickets.length > ticketsShown && (
+              <button
+                type="button"
+                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-medium text-zinc-300 transition hover:bg-white/[0.08]"
+                onClick={() => setTicketsShown((n) => n + ADMIN_PAGE_SIZE)}
+              >
+                <ChevronDown size={16} />
+                Показать ещё ({tickets.length - ticketsShown})
+              </button>
+            )}
           </Panel>
         )}
 
@@ -951,20 +1009,20 @@ function Panel({ children, note, title }: { children: React.ReactNode; note?: st
 }
 
 
-function Field({ label, onChange, required, type = "text", value }: { label: string; onChange: (value: string) => void; required?: boolean; type?: string; value: string }) {
+function Field({ label, min, onChange, required, type = "text", value }: { label: string; min?: string; onChange: (value: string) => void; required?: boolean; type?: string; value: string }) {
   return (
     <label className="grid gap-2 text-sm text-zinc-300">
       <span>{label}</span>
-      <input className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm outline-none" onChange={(event) => onChange(event.target.value)} required={required} type={type} value={value} />
+      <input className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm outline-none" min={min} onChange={(event) => onChange(event.target.value)} required={required} type={type} value={value} />
     </label>
   );
 }
 
-function Textarea({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
+function Textarea({ label, onChange, required, value }: { label: string; onChange: (value: string) => void; required?: boolean; value: string }) {
   return (
     <label className="grid gap-2 text-sm text-zinc-300">
       <span>{label}</span>
-      <textarea className="min-h-28 resize-none rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm outline-none" onChange={(event) => onChange(event.target.value)} value={value} />
+      <textarea className="min-h-28 resize-none rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm outline-none" onChange={(event) => onChange(event.target.value)} required={required} value={value} />
     </label>
   );
 }
@@ -980,12 +1038,50 @@ function Select({ children, label, onChange, required, value }: { children: Reac
   );
 }
 
+function PriceInput({ value, onSave }: { value: string | number; onSave: (val: string) => void }) {
+  const [local, setLocal] = useState(value !== null && value !== "" ? String(value) : "");
+
+  const handleBlur = () => {
+    onSave(local);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.currentTarget.blur();
+    }
+  };
+
+  return (
+    <div className="relative flex h-10 items-center rounded-2xl border border-white/10 bg-[#050505] px-3">
+      <input
+        className="w-20 bg-transparent text-sm text-white outline-none placeholder:text-zinc-600"
+        type="number"
+        min="0"
+        placeholder="Цена, ₽"
+        value={local}
+        onChange={(e) => setLocal(e.target.value)}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+      />
+      <span className="ml-1 shrink-0 text-xs text-zinc-600">₽</span>
+    </div>
+  );
+}
+
 function PrimaryButton({ icon, text }: { icon: React.ReactNode; text: string }) {
   return <button className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-white px-5 text-sm font-medium text-black" type="submit">{icon}{text}</button>;
 }
 
-function Status({ text }: { text: string }) {
-  return <div className="rounded-[22px] border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{text}</div>;
+function Status({ text, type = "success" }: { text: string; type?: "success" | "error" }) {
+  return (
+    <div className={`rounded-[22px] border px-4 py-3 text-sm ${
+      type === "error"
+        ? "border-red-500/30 bg-red-500/10 text-red-200"
+        : "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
+    }`}>
+      {text}
+    </div>
+  );
 }
 
 function ConfirmModal({
